@@ -38,6 +38,7 @@ class GCNAgent:
     def get_action(self, state, edge_index, eps=0.10):
         """
         Get the action for the current state
+        :param edge_index:
         :param state: current state
         :return: action
         """
@@ -86,3 +87,45 @@ class GCNAgent:
 
                 self.actor_optimizer.step()
                 self.critic_optimizer.step()
+
+
+def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
+                     ,request_dataset, v2i_rate, v2i_rate_mbs,vehicle_epoch, vehicle_request_num):
+    """
+    Train the agent using the mini-batch training
+    :param env: environment
+    :param agent: agent
+    :param max_episodes: maximum number of episodes
+    :param max_steps: maximum number of steps
+    :param batch_size: batch size
+    :return episode_rewards, cache_efficiency_list, request_delay_list
+    """
+
+    episode_rewards = []
+    cache_efficiency_list = []
+    request_delay_list = []
+
+    for episode in range(max_episodes):
+        state, edge_index, _ = env.reset()
+        episode_reward = 0
+
+        for step in range(max_steps):
+            action = agent.get_action(state, edge_index)
+            next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate,
+                                                                           v2i_rate_mbs, vehicle_epoch,
+                                                                           vehicle_request_num, step)
+            agent.replay_buffer.add(state, action, reward, next_state)
+            episode_reward += reward
+
+            agent.optimize_model()
+
+            # if len(agent.replay_buffer) > batch_size:
+            if len(agent.replay_buffer) % batch_size == 0:
+                agent.update(batch_size)
+
+            if step == max_steps - 1:
+                episode_rewards.append(episode_reward)
+                cache_efficiency_list.append(cache_efficiency)
+                request_delay_list.append(request_delay)
+
+    return episode_rewards, cache_efficiency_list, request_delay_list

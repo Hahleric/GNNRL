@@ -1,23 +1,30 @@
 import numpy
 
+import GCNAgent
 import environment
-import GCNAgent as agent
+import GCNAgent as Agent
+from GCNAgent import mini_batch_train
 from model import ActorGCN, CriticGCN
+from utils.data_preprocess import create_rating_matrix, get_ratings, create_top_100_rating_matrix, get_user_rated_movies
 import numpy as np
 import torch
 
-
-# generate some pseudo data and test environment, model, agents
-
 if __name__ == '__main__':
-    popular_file = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    cache_size = 3
-    recommend_list = np.array([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                                [1, 2, 3, 4, 5, 6, 7, 18, 9, 10],
-                                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
-    env = environment.Environment(cache_size, popular_file, recommend_list)
-    env.reset()
-    env.step(1, numpy.array([[4,4,5], [4,4,5], [4,4,5]]), [1,1,1], [1,1,1], [1,1,1], [1,1,1], 50)
+    # c-v2x simulation parameters:
+    V2I_min = 100  # minimum required data rate for V2I Communication
+    bandwidth = int(540000)
+    bandwidth_mbs = int(1000000)
+
+    data_set_path = 'ml-10M100K/ratings.dat'
+    user_ratings = create_top_100_rating_matrix(data_set_path)
+    cache_size = 40
+    request_data = get_user_rated_movies(data_set_path)
+    # TODO currently, randomly select some users to train the model
+    sampled_users = np.random.choice(user_ratings.shape[0], 100)
+    env = environment.Environment(40, sampled_users)
+    agent = GCNAgent.GCNAgent(cache_size, 32)
+    reward, cache_efficiency, request_delay = mini_batch_train(env, agent, 30, 100, 32, request_data, 0, 0, 0, 0)
+
+
 
 
