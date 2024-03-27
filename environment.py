@@ -52,7 +52,7 @@ class Environment():
         :param v2i_rate: vehicle to infrastructure rate
         :param v2i_rate_mbs: vehicle to infrastructure rate in MBS
         :param vehicle_epoch: current epoch for some vehicle
-        :return: state_, reward, cache_efficiency, cache_efficiency2, request_delay
+        :return: state_, reward, cache_efficiency, request_delay
         """
 
         if action == 1:
