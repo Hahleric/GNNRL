@@ -52,7 +52,10 @@ class GCNAgent:
         edge_attr = torch.tensor(edge_attr, dtype=torch.float).to(self.device)
         # state = torch.DoubleTensor(state).to(self.device)
         edge_index = torch.LongTensor(edge_index).to(self.device)
-        data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=edge_index.shape[0] // 2)
+
+
+        data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
+        assert data.edge_index.max() < data.num_nodes
         action = self.actor(data, True)
 
         if np.random.rand() < eps:

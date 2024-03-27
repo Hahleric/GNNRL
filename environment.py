@@ -26,7 +26,6 @@ class Environment():
         # MBS and RSU + initial number of vehicles
         self.init_n_node = 1 + self.init_n_veh
         self.init_edge_index = get_edge_index(self.init_n_veh)
-        print('init_edge_index', self.init_edge_index)
         self.edge_index = self.init_edge_index.copy()
         self.init_edge_index = torch.tensor(self.init_edge_index, dtype=torch.long).t()
 
@@ -51,7 +50,7 @@ class Environment():
         print('self.cache_size', self.cache_size)
         print('remaining contents', self.remaining_content)
         # recommend_list size (n, m), add first cache_size elements of every n row to state
-        self.init_state = self.state.copy() + recommend_list[:, :self.cache_size]
+        self.init_state = self.state.copy()
         self.init_remaining_content = self.remaining_content.copy()
 
     def step(self, action, request_dataset, v2i_rate, print_step):

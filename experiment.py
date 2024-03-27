@@ -26,7 +26,6 @@ if __name__ == '__main__':
     data_set_path = 'ml-latest-small/ratings.csv'
     user_ratings, top_num_rating_ndarray, request_data, top_num_popular_movies \
         = create_rating_matrix(data_set_path, REQUESTED_MOVIES)
-    print(user_ratings.shape)
     n_veh = user_ratings.shape[0]
     env_v = Environ(n_veh, V2I_min, bandwidth, bandwidth_mbs)
     vehicle_dis = np.random.normal(100, 50, n_veh)

@@ -2,10 +2,10 @@ from torch_geometric.nn import GATConv, GCNConv
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-
-
+cache_size = 40
+feature_size = 50
 class ActorGCN(nn.Module):
-    def __init__(self, node_feature_dim=100, hidden_dim=1024, output_dim=2):
+    def __init__(self, node_feature_dim=feature_size, hidden_dim=1024, output_dim=2):
         super(ActorGCN, self).__init__()
         self.heads = 4
         # 使用PyTorch Geometric的GCN层
@@ -20,13 +20,14 @@ class ActorGCN(nn.Module):
     def forward(self, x, current_state=True):
         state, edge_index, edge_attr = x.state, x.edge_index, x.edge_attr
         if current_state:
-            state = torch.reshape(state, (state.shape[0], state.shape[1]))
+            state = torch.reshape(state, (state.shape[0], 1))
             # if the current state
+            # TODO: 这里的input feature只有一个distance，完全不对，应该是某一辆车的目前推荐的电影
             x = self.gcn1(state, edge_index)
         else:
             # if the next state
             next_state = x.next_state
-            next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1]))
+            next_state = torch.reshape(next_state, (next_state.shape[0], 1))
             x = self.gcn1(next_state, edge_index)
         x = self.model_sequence1(x)
         actor = self.softmax(x)
@@ -34,7 +35,7 @@ class ActorGCN(nn.Module):
 
 
 class CriticGCN(nn.Module):
-    def __init__(self, node_feature_dim=100, hidden_dim=1024):
+    def __init__(self, node_feature_dim=feature_size, hidden_dim=1024):
         super(CriticGCN, self).__init__()
         self.gcn1 = GCNConv(node_feature_dim, hidden_dim)
         self.gcn2 = GCNConv(hidden_dim, hidden_dim)
@@ -47,13 +48,13 @@ class CriticGCN(nn.Module):
         # state/next_state shape: [batch_size * num_nodes, time_sequence, state_dim]
         # -> [batch_size * num_nodes, time_sequence * state_dim]
         if current_state:
-            state = torch.reshape(state, (state.shape[0], state.shape[1]))
+            state = torch.reshape(state, (state.shape[0], 1))
             # if the current state
             x = self.gcn1(state, edge_index)
         else:
             # if the next state
             next_state = x.next_state
-            next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1]))
+            next_state = torch.reshape(next_state, (next_state.shape[0], 1))
             x = self.gcn1(next_state, edge_index)
 
         x = self.model_sequence1(x)
