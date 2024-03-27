@@ -18,18 +18,17 @@ class ActorGCN(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x, current_state=True):
-        state, edge_index, edge_attr, mask = x.state, x.edge_index, x.edge_attr, x.mask
+        state, edge_index, edge_attr = x.state, x.edge_index, x.edge_attr
         if current_state:
-            state = torch.reshape(state, (state.shape[0], state.shape[1] * state.shape[2]))
+            state = torch.reshape(state, (state.shape[0], state.shape[1]))
             # if the current state
-            x = self.gan(state, edge_index)
+            x = self.gcn1(state, edge_index)
         else:
             # if the next state
             next_state = x.next_state
-            next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1] * next_state.shape[2]))
-            x = self.gan(next_state, edge_index)
+            next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1]))
+            x = self.gcn1(next_state, edge_index)
         x = self.model_sequence1(x)
-        x = x[mask]
         actor = self.softmax(x)
         return actor
 
@@ -43,19 +42,19 @@ class CriticGCN(nn.Module):
         self.model_sequence2 = nn.Linear(hidden_dim, 1)
 
     def forward(self, x, current_state=True):
-        state, edge_index, edge_attr, mask = x.state, x.edge_index, x.edge_attr, x.mask
+        state, edge_index, edge_attr = x.state, x.edge_index, x.edge_attr
 
         # state/next_state shape: [batch_size * num_nodes, time_sequence, state_dim]
         # -> [batch_size * num_nodes, time_sequence * state_dim]
         if current_state:
-            state = torch.reshape(state, (state.shape[0], state.shape[1] * state.shape[2]))
+            state = torch.reshape(state, (state.shape[0], state.shape[1]))
             # if the current state
-            x = self.gan(state, edge_index)
+            x = self.gcn1(state, edge_index)
         else:
             # if the next state
             next_state = x.next_state
-            next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1] * next_state.shape[2]))
-            x = self.gan(next_state, edge_index)
+            next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1]))
+            x = self.gcn1(next_state, edge_index)
 
         x = self.model_sequence1(x)
-        return x[mask]
+        return x

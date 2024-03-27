@@ -1,7 +1,10 @@
 import torch.nn as nn
 import torch
+from torch_geometric.data import Data
+
 from model import ActorGCN, CriticGCN
 from replay_buffer import ReplayBufferGNN
+from utils.node_utils import get_edge_attr, get_edge_index
 import random
 import numpy as np
 
@@ -35,16 +38,22 @@ class GCNAgent:
 
         self.MSE_loss = nn.MSELoss()
 
-    def get_action(self, state, edge_index, eps=0.10):
+    def get_action(self, state, edge_index, edge_attr, eps=0.10):
         """
         Get the action for the current state
         :param edge_index:
         :param state: current state
+        :param eps: epsilon-greedy
+        :param edge_attr: edge attribute
         :return: action
         """
-        state = torch.DoubleTensor(state).to(self.device)
+        state = torch.tensor(state, dtype=torch.float).to(self.device)
+        edge_index = torch.tensor(edge_index, dtype=torch.long).to(self.device)
+        edge_attr = torch.tensor(edge_attr, dtype=torch.float).to(self.device)
+        # state = torch.DoubleTensor(state).to(self.device)
         edge_index = torch.LongTensor(edge_index).to(self.device)
-        action = self.actor(state, edge_index)
+        data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=edge_index.shape[0] // 2)
+        action = self.actor(data, True)
 
         if np.random.rand() < eps:
             action = random.randint(0, 1)
@@ -90,7 +99,7 @@ class GCNAgent:
 
 
 def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
-                     ,request_dataset, v2i_rate, v2i_rate_mbs,vehicle_epoch, vehicle_request_num):
+                     , request_dataset, v2i_rate, vehicle_dis):
     """
     Train the agent using the mini-batch training
     :param env: environment
@@ -98,21 +107,31 @@ def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
     :param max_episodes: maximum number of episodes
     :param max_steps: maximum number of steps
     :param batch_size: batch size
+    :param request_dataset: request dataset
+    :param v2i_rate: vehicle to infrastructure rate
+    :param vehicle_dis: vehicle distance
     :return episode_rewards, cache_efficiency_list, request_delay_list
     """
 
     episode_rewards = []
     cache_efficiency_list = []
     request_delay_list = []
+    vehicle_request_num = []
+    vehicle_epoch = [i for i in range(1, request_dataset.shape[0] + 1)]
+    edge_index = get_edge_index(len(vehicle_epoch))
+    edge_attr = get_edge_attr(edge_index, vehicle_dis)
+
+    for i in range(len(request_dataset)):
+        vehicle_request_num.append(len(request_dataset[i]))
 
     for episode in range(max_episodes):
-        state, edge_index, _ = env.reset()
+        state, edge_index, remaining_content = env.reset()
         episode_reward = 0
 
         for step in range(max_steps):
-            action = agent.get_action(state, edge_index)
+            action = agent.get_action(state, edge_index, edge_attr)
             next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate,
-                                                                           v2i_rate_mbs, vehicle_epoch,
+                                                                           vehicle_epoch,
                                                                            vehicle_request_num, step)
             agent.replay_buffer.add(state, action, reward, next_state)
             episode_reward += reward

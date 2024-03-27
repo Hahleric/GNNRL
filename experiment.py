@@ -19,22 +19,41 @@ if __name__ == '__main__':
     V2I_min = 100  # minimum required data rate for V2I Communication
     bandwidth = int(540000)
     bandwidth_mbs = int(1000000)
+    COVERED_VEH = 50
+    REQUESTED_MOVIES = 50
+    BATCH_SIZE = 32
 
     data_set_path = 'ml-latest-small/ratings.csv'
-    user_ratings, top_100_rating_ndarray, request_data, top_100_popular_movies \
-        = create_rating_matrix(data_set_path)
+    user_ratings, top_num_rating_ndarray, request_data, top_num_popular_movies \
+        = create_rating_matrix(data_set_path, REQUESTED_MOVIES)
     print(user_ratings.shape)
     n_veh = user_ratings.shape[0]
     env_v = Environ(n_veh, V2I_min, bandwidth, bandwidth_mbs)
-    vehicle_dis = np.zeros(n_veh)
+    vehicle_dis = np.random.normal(100, 50, n_veh)
     v2i_rate, v2i_rate_mbs = env_v.Compute_Performance_Static(vehicle_dis)
     cache_size = 40
     # TODO currently, randomly select some users to train the model
-    sampled_users = np.random.choice(user_ratings.shape[0], 100)
-    print(sampled_users.shape)
-    env = environment.Environment(40, top_100_popular_movies, user_ratings)
-    agent = GCNAgent.GCNAgent(cache_size, 32)
-    reward, cache_efficiency, request_delay = mini_batch_train(env, agent, 30, 100, 32, request_data, v2i_rate, v2i_rate_mbs, [i for i in range(len(user_ratings))], request_data)
+    # print request_data in a nice way
+    random_idx = np.random.choice(n_veh, COVERED_VEH, replace=True)
+    # sampled_requested_movies = np.array(request_data, shape=())[random_idx, :]
+    sampled_v2i_rate = v2i_rate[random_idx]
+    sampled_v2i_rate_mbs = v2i_rate_mbs[random_idx]
+    sampled_request_movies = top_num_rating_ndarray[random_idx, :]
+    sampled_veh_dis = vehicle_dis[random_idx]
+    # node_features
+    sampled_request_movies = np.nan_to_num(sampled_request_movies)
+    env = environment.Environment(cache_size, top_num_popular_movies, sampled_request_movies)
+    agent = Agent.GCNAgent(cache_size, 32)
+    episode_rewards, cache_efficiency, request_delay = mini_batch_train(env, agent, 10, 10,
+                                                                        32,
+                                                                        sampled_request_movies,
+                                                                        sampled_v2i_rate,
+                                                                        sampled_veh_dis)
+
+
+
+
+
 
 
 

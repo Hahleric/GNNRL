@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 
-def create_rating_matrix(ratings_file_path):
+def create_rating_matrix(ratings_file_path, top_num=100):
     """
     Creates a rating matrix from the MovieLens ratings file.
 
@@ -31,7 +31,7 @@ def create_rating_matrix(ratings_file_path):
     # 转换为ndarray
     rating_ndarray = rating_matrix.to_numpy()
     sorted_ratings = ratings.sort_values(by=['userId', 'rating'], ascending=[True, False])
-    top_movies_by_user = sorted_ratings.groupby('userId').head(100)
+    top_movies_by_user = sorted_ratings.groupby('userId').head(top_num)
     top_movies_by_user['rank'] = top_movies_by_user.groupby('userId')['rating'].rank(ascending=False, method='first')
     user_movie_matrix = top_movies_by_user.pivot(index='userId', columns='rank', values='movieId')
     user_rated_movies = ratings.groupby('userId')['movieId'].apply(list).to_dict()
@@ -40,7 +40,7 @@ def create_rating_matrix(ratings_file_path):
     movie_counts = ratings['movieId'].value_counts()
 
     # Get the top 100 most rated movies
-    top_100_popular_movies = movie_counts.nlargest(100).index.tolist()
+    top_100_popular_movies = movie_counts.nlargest(top_num).index.tolist()
 
     return rating_ndarray, user_movie_matrix.to_numpy(), user_rated_movies, top_100_popular_movies
 
