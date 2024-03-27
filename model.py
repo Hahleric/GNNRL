@@ -2,6 +2,8 @@ from torch_geometric.nn import GATConv, GCNConv
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+
+
 class ActorGCN(nn.Module):
     def __init__(self, node_feature_dim=100, hidden_dim=1024, output_dim=2):
         super(ActorGCN, self).__init__()
@@ -14,8 +16,6 @@ class ActorGCN(nn.Module):
             nn.ReLU()
         )
         self.softmax = nn.Softmax(dim=1)
-
-
 
     def forward(self, x, current_state=True):
         state, edge_index, edge_attr, mask = x.state, x.edge_index, x.edge_attr, x.mask
@@ -56,7 +56,6 @@ class CriticGCN(nn.Module):
             next_state = x.next_state
             next_state = torch.reshape(next_state, (next_state.shape[0], next_state.shape[1] * next_state.shape[2]))
             x = self.gan(next_state, edge_index)
-
 
         x = self.model_sequence1(x)
         return x[mask]

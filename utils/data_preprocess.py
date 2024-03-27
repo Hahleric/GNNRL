@@ -86,6 +86,7 @@ def create_top_100_rating_matrix(ratings_file_path):
 
     return top_100_rating_ndarray
 
+
 def get_user_rated_movies(ratings_file_path):
     """
     Returns a dictionary where each key is a user ID and the value is a list of movie IDs
@@ -110,6 +111,46 @@ def get_user_rated_movies(ratings_file_path):
     user_rated_movies = ratings.groupby('UserID')['MovieID'].apply(list).to_dict()
 
     return user_rated_movies
+
+
+def get_most_popular_movie(rating_path, num=100):
+    ratings_file = rating_path
+    ratings = pd.read_csv(ratings_file, sep='::', header=None, names=['UserID', 'MovieID', 'Rating', 'Timestamp'],
+                          engine='python')
+
+    # Count the number of ratings for each movie and sort them in descending order
+    movie_popularity = ratings.groupby('MovieID').size().sort_values(ascending=False)
+
+    # Get the top 100 movie IDs
+    top_num_movies = movie_popularity.head(num).index.tolist()
+    return top_num_movies
+
+def get_top_100_popular_movies(ratings_file_path):
+    """
+    Identifies the top 100 most popular movies based on their rating frequency.
+
+    Parameters:
+    ratings_file_path (str): The file path to the MovieLens ratings.dat file.
+
+    Returns:
+    List[int]: A list of MovieIDs for the top 100 most popular movies.
+    """
+    # Read the ratings data
+    ratings = pd.read_csv(
+        ratings_file_path,
+        sep='::',
+        header=None,
+        names=['UserID', 'MovieID', 'Rating', 'Timestamp'],
+        engine='python'
+    )
+
+    # Count the number of ratings for each movie
+    movie_counts = ratings['MovieID'].value_counts()
+
+    # Get the top 100 most rated movies
+    top_100_popular_movies = movie_counts.nlargest(100).index.tolist()
+
+    return top_100_popular_movies
 
 
 if __name__ == "__main__":
