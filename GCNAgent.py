@@ -29,7 +29,7 @@ class GCNAgent:
         self.replay_buffer = ReplayBufferGNN(buffer_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.actor = ActorGCN().to(self.device)
+        self.actor = ActorGCN(self.cache_size).to(self.device)
         self.critic = CriticGCN().to(self.device)
 
         # TODO: hyperparameter tuning for weight_decay
@@ -52,7 +52,6 @@ class GCNAgent:
         edge_attr = torch.tensor(edge_attr, dtype=torch.float).to(self.device)
         # state = torch.DoubleTensor(state).to(self.device)
         edge_index = torch.LongTensor(edge_index).to(self.device)
-
 
         data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
         assert data.edge_index.max() < data.num_nodes
@@ -122,21 +121,19 @@ def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
     vehicle_request_num = []
     vehicle_epoch = [i for i in range(1, request_dataset.shape[0] + 1)]
     edge_index = get_edge_index(len(vehicle_epoch))
-    edge_attr = get_edge_attr(edge_index, vehicle_dis)
+    edge_attr = get_edge_attr(edge_index, request_dataset)
 
     for i in range(len(request_dataset)):
         vehicle_request_num.append(len(request_dataset[i]))
 
     for episode in range(max_episodes):
-        state, edge_index, remaining_content = env.reset()
+        state, edge_index, remaining_content, node_features = env.reset()
         episode_reward = 0
 
         for step in range(max_steps):
-            action = agent.get_action(state, edge_index, edge_attr)
-            next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate,
-                                                                           vehicle_epoch,
-                                                                           vehicle_request_num, step)
-            agent.replay_buffer.add(state, action, reward, next_state)
+            action = agent.get_action(node_features, edge_index, edge_attr)
+            next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate, step)
+            agent.replay_buffer.add(node_features, action, reward, next_state)
             episode_reward += reward
 
             agent.optimize_model()

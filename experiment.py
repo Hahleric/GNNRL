@@ -19,8 +19,8 @@ if __name__ == '__main__':
     V2I_min = 100  # minimum required data rate for V2I Communication
     bandwidth = int(540000)
     bandwidth_mbs = int(1000000)
-    COVERED_VEH = 50
-    REQUESTED_MOVIES = 50
+    COVERED_VEH = 20
+    REQUESTED_MOVIES = 20
     BATCH_SIZE = 32
 
     data_set_path = 'ml-latest-small/ratings.csv'
@@ -30,7 +30,10 @@ if __name__ == '__main__':
     env_v = Environ(n_veh, V2I_min, bandwidth, bandwidth_mbs)
     vehicle_dis = np.random.normal(100, 50, n_veh)
     v2i_rate, v2i_rate_mbs = env_v.Compute_Performance_Static(vehicle_dis)
-    cache_size = 40
+
+
+    cache_size = 20
+
     # TODO currently, randomly select some users to train the model
     # print request_data in a nice way
     random_idx = np.random.choice(n_veh, COVERED_VEH, replace=True)

@@ -14,14 +14,14 @@ def get_edge_attr(edge_index, feature):
     """
     Get the edge attribute
     :param edge_index: edge index
-    :param feature: feature, currently distance
+    :param feature: feature, currently recommend list
     :return: edge attribute
     """
     edge_attr = []
     for i in range(edge_index.shape[0] // 2):
-        edge_attr.append([feature[i]])
+        edge_attr.append(feature[i])
     for i in range(edge_index.shape[0] // 2):
-        edge_attr.append([feature[i]])
+        edge_attr.append(feature[i])
     return edge_attr
 
 if __name__ == "__main__":

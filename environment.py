@@ -28,13 +28,12 @@ class Environment():
         self.init_edge_index = get_edge_index(self.init_n_veh)
         self.edge_index = self.init_edge_index.copy()
         self.init_edge_index = torch.tensor(self.init_edge_index, dtype=torch.long).t()
-
-        if len(self.popular_file) < self.cache_size:
+        if len(self.popular_file) <= self.cache_size:
             self.state += self.popular_file
 
         if len(self.popular_file) > self.cache_size:
             self.state += random.sample(list(self.popular_file), self.cache_size)
-
+        print(self.state)
         state = []
         for i in range(len(self.popular_file)):
             # 按照内容流行度进行排序
@@ -52,6 +51,9 @@ class Environment():
         # recommend_list size (n, m), add first cache_size elements of every n row to state
         self.init_state = self.state.copy()
         self.init_remaining_content = self.remaining_content.copy()
+        self.init_node_features = recommend_list
+        self.init_node_features = np.insert(self.init_node_features, 0, popular_file, axis=0)
+        self.node_features = self.init_node_features.copy()
 
     def step(self, action, request_dataset, v2i_rate, print_step):
         """
@@ -126,4 +128,4 @@ class Environment():
             return self.state, reward, cache_efficiency, request_delay
 
     def reset(self):
-        return self.init_state, self.init_edge_index, self.init_remaining_content
+        return self.init_state, self.init_edge_index, self.init_remaining_content, self.init_node_features

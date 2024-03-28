@@ -2,17 +2,15 @@ from torch_geometric.nn import GATConv, GCNConv
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-cache_size = 40
-feature_size = 50
 class ActorGCN(nn.Module):
-    def __init__(self, node_feature_dim=feature_size, hidden_dim=1024, output_dim=2):
+    def __init__(self, node_feature_dim=20, hidden_dim=1024, output_dim=2):
         super(ActorGCN, self).__init__()
         self.heads = 4
         # 使用PyTorch Geometric的GCN层
         self.gcn1 = GCNConv(node_feature_dim, hidden_dim)
         self.model_sequence1 = nn.Sequential(
-            nn.BatchNorm1d(hidden_dim * self.heads),
-            nn.Linear(node_feature_dim * self.heads, output_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.Linear(hidden_dim, output_dim),
             nn.ReLU()
         )
         self.softmax = nn.Softmax(dim=1)
@@ -20,9 +18,11 @@ class ActorGCN(nn.Module):
     def forward(self, x, current_state=True):
         state, edge_index, edge_attr = x.state, x.edge_index, x.edge_attr
         if current_state:
-            state = torch.reshape(state, (state.shape[0], 1))
+            # state = torch.reshape(state, (1, state.shape[0]))
             # if the current state
-            # TODO: 这里的input feature只有一个distance，完全不对，应该是某一辆车的目前推荐的电影
+            # 这里的input feature只有一个是某一辆车的目前推荐的电影
+            print('state', state.shape)
+            print('edge_index', edge_index.shape)
             x = self.gcn1(state, edge_index)
         else:
             # if the next state
@@ -35,7 +35,7 @@ class ActorGCN(nn.Module):
 
 
 class CriticGCN(nn.Module):
-    def __init__(self, node_feature_dim=feature_size, hidden_dim=1024):
+    def __init__(self, node_feature_dim=20, hidden_dim=1024):
         super(CriticGCN, self).__init__()
         self.gcn1 = GCNConv(node_feature_dim, hidden_dim)
         self.gcn2 = GCNConv(hidden_dim, hidden_dim)
