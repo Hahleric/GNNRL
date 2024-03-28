@@ -30,8 +30,8 @@ class ActorGCN(nn.Module):
             next_state = torch.reshape(next_state, (next_state.shape[0], 1))
             x = self.gcn1(next_state, edge_index)
         x = self.model_sequence1(x)
-        actor = self.softmax(x)
-        return actor
+        action_prob = self.softmax(x)
+        return action_prob
 
 
 class CriticGCN(nn.Module):

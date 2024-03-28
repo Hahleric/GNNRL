@@ -62,7 +62,10 @@ class Environment():
         :param v2i_rate: vehicle to infrastructure rate of requesting vehicles, shape(Covered_Vehicles, )
         :return: state_, reward, cache_efficiency, request_delay
         """
+        all_vehicle_request_num = 0
 
+        for i in range(len(request_dataset)):
+            all_vehicle_request_num += len(request_dataset[i])
         if action == 1:
 
             if len(self.remaining_content) >= 5:
@@ -90,42 +93,38 @@ class Environment():
                 if self.popular_file[i] not in self.state:
                     last_content.append(self.popular_file[i])
             self.remaining_content = last_content
-
-            all_vehicle_request_num = 0
-
-            for i in range(len(request_dataset)):
-                all_vehicle_request_num += len(request_dataset[i])
             # print('=================================all_vehicle_request_num', all_vehicle_request_num,
             # '================================')
-            cache_efficiency = cache_hit_ratio(request_dataset, self.state,
-                                               all_vehicle_request_num)
-            cache_efficiency = cache_efficiency / 100
+        cache_efficiency = cache_hit_ratio(request_dataset, self.state,
+                                           all_vehicle_request_num)
+        cache_efficiency = cache_efficiency / 100
 
-            reward = 0
-            request_delay = 0
-            for i in range(len(request_dataset.shape[0])):
-                vehicle_idx = i
+        reward = 0
+        request_delay = 0
+        for i in range(request_dataset.shape[0]):
+            vehicle_idx = i
 
-                # Only one cache efficiency calculation
-                reward += cache_efficiency * math.exp(-0.0001 * 8000000 / v2i_rate[vehicle_idx]) * len(request_dataset[
-                                                                                                           vehicle_idx])
-                reward += (1 - cache_efficiency) * math.exp(-0.5999 * 8000000 / (v2i_rate[vehicle_idx] / 2)) * \
-                          len(request_dataset[vehicle_idx])
+            # Only one cache efficiency calculation
+            reward += cache_efficiency * math.exp(-0.0001 * 8000000 / v2i_rate[vehicle_idx]) * len(request_dataset[
+                                                                                                       vehicle_idx])
+            reward += (1 - cache_efficiency) * math.exp(-0.5999 * 8000000 / (v2i_rate[vehicle_idx] / 2)) * \
+                      len(request_dataset[vehicle_idx])
 
-                # Delay calculations adjusted to only account for cache_efficiency
-                request_delay += cache_efficiency * len(request_dataset[vehicle_idx]) / v2i_rate[vehicle_idx] * 800
-                request_delay += (1 - cache_efficiency) * (
-                        len(request_dataset[vehicle_idx]) / (v2i_rate[vehicle_idx] / 2)) * 800
+            # Delay calculations adjusted to only account for cache_efficiency
+            request_delay += cache_efficiency * len(request_dataset[vehicle_idx]) / v2i_rate[vehicle_idx] * 800
+            request_delay += (1 - cache_efficiency) * (
+                    len(request_dataset[vehicle_idx]) / (v2i_rate[vehicle_idx] / 2)) * 800
 
-                # print(i,'mbs delay',(vehicle_request_num[vehicle_idx] / v2i_rate_mbs[vehicle_idx]) *100000)
-            request_delay = request_delay / request_dataset.shape[0] * 1000
-            if print_step % 2 == 0:
-                print("---------------------------------------------")
-                print('all_vehicle_request_num', all_vehicle_request_num)
-                print('step:{} RSU1 cache_efficiency:{}'.format(print_step, cache_efficiency))
-                print('step', print_step, 'request delay:%f' % (request_delay))
-                print("---------------------------------------------")
-            return self.state, reward, cache_efficiency, request_delay
+            # print(i,'mbs delay',(vehicle_request_num[vehicle_idx] / v2i_rate_mbs[vehicle_idx]) *100000)
+        request_delay = request_delay / request_dataset.shape[0] * 1000
+        # if print_step % 2 == 1:
+
+        print("---------------------------------------------")
+        print('all_vehicle_request_num', all_vehicle_request_num)
+        print('step:{} RSU1 cache_efficiency:{}'.format(print_step, cache_efficiency))
+        print('step', print_step, 'request delay:%f' % (request_delay))
+        print("---------------------------------------------")
+        return self.state, reward, cache_efficiency, request_delay
 
     def reset(self):
         return self.init_state, self.init_edge_index, self.init_remaining_content, self.init_node_features

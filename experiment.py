@@ -20,7 +20,7 @@ if __name__ == '__main__':
     bandwidth = int(540000)
     bandwidth_mbs = int(1000000)
     COVERED_VEH = 20
-    REQUESTED_MOVIES = 20
+    REQUESTED_MOVIES = 50
     BATCH_SIZE = 32
 
     data_set_path = 'ml-latest-small/ratings.csv'
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # node_features
     sampled_request_movies = np.nan_to_num(sampled_request_movies)
     env = environment.Environment(cache_size, top_num_popular_movies, sampled_request_movies)
-    agent = Agent.GCNAgent(cache_size, 32)
+    agent = Agent.GCNAgent(cache_size, REQUESTED_MOVIES, 32)
     episode_rewards, cache_efficiency, request_delay = mini_batch_train(env, agent, 10, 10,
                                                                         32,
                                                                         sampled_request_movies,

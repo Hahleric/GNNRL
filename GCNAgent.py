@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+from torch.distributions import Categorical
 from torch_geometric.data import Data
 
 from model import ActorGCN, CriticGCN
@@ -14,7 +15,7 @@ class GCNAgent:
     This class is responsible for the creation of the GCN agent.
     """
 
-    def __init__(self, cache_size, batch_size, learning_rate=0.01, gamma=0.99, buffer_size=1000):
+    def __init__(self, cache_size, feature_dim, batch_size, learning_rate=0.01, gamma=0.99, buffer_size=1000):
         """
 
         :param cache_size: cache_size of current RSU
@@ -23,13 +24,14 @@ class GCNAgent:
         :param buffer_size: size of the replay buffer TODO: hyperparameter tuning
         """
         self.cache_size = cache_size
+        self.feature_dim = feature_dim
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.batch_size = batch_size
         self.replay_buffer = ReplayBufferGNN(buffer_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.actor = ActorGCN(self.cache_size).to(self.device)
+        self.actor = ActorGCN(self.feature_dim).to(self.device)
         self.critic = CriticGCN().to(self.device)
 
         # TODO: hyperparameter tuning for weight_decay
@@ -55,8 +57,9 @@ class GCNAgent:
 
         data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
         assert data.edge_index.max() < data.num_nodes
-        action = self.actor(data, True)
-
+        action_prob = self.actor(data, True)
+        m = Categorical(action_prob[0])
+        action = m.sample().item()
         if np.random.rand() < eps:
             action = random.randint(0, 1)
             return action
@@ -131,6 +134,11 @@ def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
         episode_reward = 0
 
         for step in range(max_steps):
+
+            # TODO modify replay buffer, state
+            #  state should still be a list of cached movies instead of node features.
+            #  2 ways: 1. use cached movie state, recommend_list concatenation to build node_feature
+            #          2. keep using concatenation as state, only modify first element.(Not Good).
             action = agent.get_action(node_features, edge_index, edge_attr)
             next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate, step)
             agent.replay_buffer.add(node_features, action, reward, next_state)

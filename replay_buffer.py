@@ -53,7 +53,7 @@ class ReplayBufferGNN(ReplayBuffer):
 
     # add: add a transition (s, a, r, s2, d)
     # add Data object directly
-    def add(self, s, a, r, s2, d, edge_index, edge_attr, mask):
+    def add(self, s, a, r, s2, d, edge_index, edge_attr):
         # self.buf.append((s, a, r, s2, d))
         state, action, reward, next_state, terminal = s, a, r, s2, d
 
