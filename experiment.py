@@ -46,11 +46,11 @@ if __name__ == '__main__':
     sampled_request_movies = np.nan_to_num(sampled_request_movies)
     env = environment.Environment(cache_size, top_num_popular_movies, sampled_request_movies)
     agent = Agent.GCNAgent(cache_size, REQUESTED_MOVIES, 32)
-    episode_rewards, cache_efficiency, request_delay = mini_batch_train(env, agent, 10, 10,
-                                                                        32,
+    episode_rewards, cache_efficiency, request_delay = mini_batch_train(env, agent, 20, 10,
+                                                                        16,
                                                                         sampled_request_movies,
-                                                                        sampled_v2i_rate,
-                                                                        sampled_veh_dis)
+                                                                        sampled_v2i_rate
+                                                                        )
 
 
 

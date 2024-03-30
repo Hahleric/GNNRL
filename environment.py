@@ -21,7 +21,7 @@ class Environment():
         self.popular_file = popular_file
         self.action_space = [0, 1]
         self.reward = 0
-        self.state = []
+        self.cached_files = []
         self.init_n_veh = recommend_list.shape[0]
         # MBS and RSU + initial number of vehicles
         self.init_n_node = 1 + self.init_n_veh
@@ -29,31 +29,33 @@ class Environment():
         self.edge_index = self.init_edge_index.copy()
         self.init_edge_index = torch.tensor(self.init_edge_index, dtype=torch.long).t()
         if len(self.popular_file) <= self.cache_size:
-            self.state += self.popular_file
+            self.cached_files += self.popular_file
 
         if len(self.popular_file) > self.cache_size:
-            self.state += random.sample(list(self.popular_file), self.cache_size)
-        print(self.state)
-        state = []
+            self.cached_files += random.sample(list(self.popular_file), self.cache_size)
+        print(self.cached_files)
+        cache_files = []
         for i in range(len(self.popular_file)):
             # 按照内容流行度进行排序
-            if self.popular_file[i] in self.state:
-                state.append(self.popular_file[i])
-        self.state = state
+            if self.popular_file[i] in self.cached_files:
+                cache_files.append(self.popular_file[i])
+        self.cached_files = cache_files
 
         remaining_content = []
         for i in range(len(self.popular_file)):
-            if self.popular_file[i] not in self.state:
+            if self.popular_file[i] not in self.cached_files:
                 remaining_content.append(self.popular_file[i])
         self.remaining_content = remaining_content
         print('self.cache_size', self.cache_size)
         print('remaining contents', self.remaining_content)
         # recommend_list size (n, m), add first cache_size elements of every n row to state
-        self.init_state = self.state.copy()
+        self.init_cached_files = self.cached_files.copy()
         self.init_remaining_content = self.remaining_content.copy()
         self.init_node_features = recommend_list
         self.init_node_features = np.insert(self.init_node_features, 0, popular_file, axis=0)
         self.node_features = self.init_node_features.copy()
+        self.init_state = self.init_cached_files + self.init_remaining_content
+        self.state = self.init_state.copy()
 
     def step(self, action, request_dataset, v2i_rate, print_step):
         """
@@ -72,30 +74,32 @@ class Environment():
                 replace_content = random.sample(list(self.remaining_content), 5)
                 count = 0
                 if count < 5:
-                    self.state[-count - 1] = replace_content[count]
+                    self.cached_files[-count - 1] = replace_content[count]
                     count += 1
             else:
                 replace_content = self.remaining_content
             count = 0
             if count < 5:
-                self.state[-count - 1] = replace_content[count]
+                self.cached_files[-count - 1] = replace_content[count]
                 count += 1
 
-            state = []
+            cache_files = []
             for i in range(len(self.popular_file)):
                 # 按照内容流行度进行排序
-                if self.popular_file[i] in self.state:
-                    state.append(self.popular_file[i])
-            self.state = state
+                if self.popular_file[i] in self.cached_files:
+                    cache_files.append(self.popular_file[i])
+            self.cached_files = cache_files
 
             last_content = []
             for i in range(len(self.popular_file)):
-                if self.popular_file[i] not in self.state:
+                if self.popular_file[i] not in self.cached_files:
                     last_content.append(self.popular_file[i])
             self.remaining_content = last_content
-            # print('=================================all_vehicle_request_num', all_vehicle_request_num,
-            # '================================')
-        cache_efficiency = cache_hit_ratio(request_dataset, self.state,
+
+            # since we have to make state's dim is equal to vehicle's requests, we need to return this list
+            self.state = self.cached_files + self.remaining_content
+
+        cache_efficiency = cache_hit_ratio(request_dataset, self.cached_files,
                                            all_vehicle_request_num)
         cache_efficiency = cache_efficiency / 100
 
@@ -127,4 +131,8 @@ class Environment():
         return self.state, reward, cache_efficiency, request_delay
 
     def reset(self):
-        return self.init_state, self.init_edge_index, self.init_remaining_content, self.init_node_features
+        return (self.init_state,
+                self.init_edge_index,
+                self.init_remaining_content,
+                self.init_node_features,
+                )

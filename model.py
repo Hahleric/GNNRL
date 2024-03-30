@@ -21,14 +21,20 @@ class ActorGCN(nn.Module):
             # state = torch.reshape(state, (1, state.shape[0]))
             # if the current state
             # 这里的input feature只有一个是某一辆车的目前推荐的电影
-            print('state', state.shape)
-            print('edge_index', edge_index.shape)
-            x = self.gcn1(state, edge_index)
+            # concatenate the state_remaining and edge_attr
+            print("state shape", state.shape)
+            print("edge_index shape", edge_index.shape)
+            print("edge_index", edge_index)
+            print("edge_attr shape", edge_attr.shape)
+            state = torch.reshape(state, (-1, edge_attr.shape[1]))
+            node_features = torch.cat((state, edge_attr), dim=0)
+            x = self.gcn1(node_features, edge_index)
         else:
             # if the next state
             next_state = x.next_state
-            next_state = torch.reshape(next_state, (next_state.shape[0], 1))
-            x = self.gcn1(next_state, edge_index)
+            next_state = torch.reshape(next_state, (-1, edge_attr.shape[1]))
+            next_node_features = torch.cat((next_state, edge_attr), dim=0)
+            x = self.gcn1(next_node_features, edge_index)
         x = self.model_sequence1(x)
         action_prob = self.softmax(x)
         return action_prob
@@ -43,19 +49,20 @@ class CriticGCN(nn.Module):
         self.model_sequence2 = nn.Linear(hidden_dim, 1)
 
     def forward(self, x, current_state=True):
-        state, edge_index, edge_attr = x.state, x.edge_index, x.edge_attr
+        state,  edge_index, edge_attr = x.state_, x.edge_index, x.edge_attr
 
-        # state/next_state shape: [batch_size * num_nodes, time_sequence, state_dim]
-        # -> [batch_size * num_nodes, time_sequence * state_dim]
         if current_state:
-            state = torch.reshape(state, (state.shape[0], 1))
-            # if the current state
-            x = self.gcn1(state, edge_index)
+            node_features = torch.cat((state.unsqueeze(0), edge_attr), dim=0)
+            x = self.gcn1(node_features, edge_index)
+            x = F.relu(x)
+            x = self.gcn2(x, edge_index)
         else:
             # if the next state
             next_state = x.next_state
-            next_state = torch.reshape(next_state, (next_state.shape[0], 1))
-            x = self.gcn1(next_state, edge_index)
+            next_node_features = torch.cat((next_state.unsqueeze(0), edge_attr), dim=0)
+            x = self.gcn1(next_node_features, edge_index)
+            x = F.relu(x)
+            x = self.gcn2(x, edge_index)
 
-        x = self.model_sequence1(x)
+        x = self.model_sequence2(x)
         return x

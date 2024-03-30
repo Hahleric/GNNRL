@@ -55,7 +55,7 @@ class GCNAgent:
         # state = torch.DoubleTensor(state).to(self.device)
         edge_index = torch.LongTensor(edge_index).to(self.device)
 
-        data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
+        data = Data(state=state,edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
         assert data.edge_index.max() < data.num_nodes
         action_prob = self.actor(data, True)
         m = Categorical(action_prob[0])
@@ -65,46 +65,55 @@ class GCNAgent:
             return action
         return action
 
-    def optimize_model(self):
+    def optimize_model(self, batch_size):
         """
         Compute the loss for the current batch
+        :return: loss
         """
-        if self.replay_buffer.length() < self.batch_size:
+        if self.replay_buffer.length() < batch_size:
             return
 
-        data_loader = self.replay_buffer.sample(self.batch_size)
-        self.actor.eval()
-        self.critic.eval()
+        data_loader = self.replay_buffer.sample(batch_size)
         if data_loader:
             for batch_idx, data in enumerate(data_loader):
                 state = data.state.to(self.device)
-                action = data.action.to(self.device)
                 reward = data.reward.to(self.device)
                 next_state = data.next_state.to(self.device)
                 terminal = data.terminal.to(self.device)
 
+                # 计算当前状态的动作概率和价值
+                x_current = Data(state=state, edge_index=data.edge_index, edge_attr=data.edge_attr)
+                current_action_probs = self.actor(x_current)
+                current_value = self.critic(x_current).squeeze()
+
+                # 计算下一个状态的价值
+                x_next = Data(state=next_state, edge_index=data.edge_index, edge_attr=data.edge_attr)
+                next_value = self.critic(x_next, False).squeeze()
+
+                # 计算目标值和优势
+                target_value = reward + self.gamma * next_value * (1 - terminal)
+                advantage = target_value - current_value
+
+                # 计算Critic的损失
+                critic_loss = (advantage.pow(2)).mean()
+
+                # 计算Actor的损失
+                action_log_probs = torch.log(current_action_probs)
+                actor_loss = -(action_log_probs * advantage.detach()).mean()
+
+                # 优化Actor
                 self.actor_optimizer.zero_grad()
-                self.critic_optimizer.zero_grad()
-
-                # Compute the loss for the actor
-                actor_loss = -self.critic(state, action)
-                actor_loss = actor_loss.mean()
-
-                # Compute the loss for the critic
-                next_action = self.actor(next_state)
-                target = reward + self.gamma * self.critic(next_state, next_action) * (1 - terminal)
-                critic_loss = self.MSE_loss(self.critic(state, action), target)
-                critic_loss = critic_loss.mean()
-
                 actor_loss.backward()
-                critic_loss.backward()
-
                 self.actor_optimizer.step()
+
+                # 优化Critic
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
                 self.critic_optimizer.step()
 
 
 def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
-                     , request_dataset, v2i_rate, vehicle_dis):
+                     , request_dataset, v2i_rate):
     """
     Train the agent using the mini-batch training
     :param env: environment
@@ -128,26 +137,30 @@ def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
 
     for i in range(len(request_dataset)):
         vehicle_request_num.append(len(request_dataset[i]))
-
+    terminal = 0
     for episode in range(max_episodes):
         state, edge_index, remaining_content, node_features = env.reset()
         episode_reward = 0
-
+        print("____________", episode," Started " + "__________")
+        if episode == max_episodes - 1:
+            terminal = 1
         for step in range(max_steps):
 
             # TODO modify replay buffer, state
             #  state should still be a list of cached movies instead of node features.
             #  2 ways: 1. use cached movie state, recommend_list concatenation to build node_feature
             #          2. keep using concatenation as state, only modify first element.(Not Good).
-            action = agent.get_action(node_features, edge_index, edge_attr)
-            next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate, step)
-            agent.replay_buffer.add(node_features, action, reward, next_state)
+            #  action = agent.get_action(node_features, edge_index, edge_attr)
+            action = agent.get_action(state, edge_index, edge_attr)
+            # TODO add edge_index, edge_attr right here.
+            next_state, reward, cache_efficiency, request_delay= env.step(action, request_dataset, v2i_rate, step)
+            agent.replay_buffer.add(state, action, reward, terminal, next_state, edge_index, edge_attr)
             episode_reward += reward
 
-            agent.optimize_model()
+            agent.optimize_model(batch_size)
 
             # if len(agent.replay_buffer) > batch_size:
-            if len(agent.replay_buffer) % batch_size == 0:
+            if agent.replay_buffer.length() % batch_size == 0:
                 agent.update(batch_size)
 
             if step == max_steps - 1:
