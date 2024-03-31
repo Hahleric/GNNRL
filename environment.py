@@ -28,12 +28,14 @@ class Environment():
         self.init_edge_index = get_edge_index(self.init_n_veh)
         self.edge_index = self.init_edge_index.copy()
         self.init_edge_index = torch.tensor(self.init_edge_index, dtype=torch.long).t()
-        if len(self.popular_file) <= self.cache_size:
-            self.cached_files += self.popular_file
+        if len(self.popular_file) == self.cache_size:
+            self.cached_files = self.popular_file
+        # if the popular file is less than cache size, we need to add some random files to the cache
+        if len(self.popular_file) < self.cache_size:
+            self.cached_files = random.sample(list(self.popular_file), self.cache_size)
 
         if len(self.popular_file) > self.cache_size:
             self.cached_files += random.sample(list(self.popular_file), self.cache_size)
-        print(self.cached_files)
         cache_files = []
         for i in range(len(self.popular_file)):
             # 按照内容流行度进行排序
@@ -72,6 +74,7 @@ class Environment():
             all_vehicle_request_num += len(request_dataset[i])
         if action == 1:
             print("len(self.remaining_content)", len(self.remaining_content))
+            # TODO 通过cache hit ratio来判断哪些文件被request最多，哪些目前来说最少，然后替换最少的文件
             num_to_replace = min(REPLAY_NUM, len(self.remaining_content), len(self.cached_files))
 
             if num_to_replace > 0:

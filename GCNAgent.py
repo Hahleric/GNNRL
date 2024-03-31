@@ -15,7 +15,7 @@ class GCNAgent:
     This class is responsible for the creation of the GCN agent.
     """
 
-    def __init__(self, cache_size, feature_dim, batch_size, learning_rate=1e-5, gamma=0.99, buffer_size=1000):
+    def __init__(self, cache_size, feature_dim, batch_size, learning_rate=1e-6, gamma=0.99, buffer_size=1000):
         """
 
         :param cache_size: cache_size of current RSU

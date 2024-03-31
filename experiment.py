@@ -31,7 +31,7 @@ if __name__ == '__main__':
     vehicle_dis = np.random.normal(100, 50, n_veh)
     v2i_rate, v2i_rate_mbs = env_v.Compute_Performance_Static(vehicle_dis)
 
-    cache_size = 40
+    cache_size = 50
     MAX_EPISODES = 30
     # TODO currently, randomly select some users to train the model
     # print request_data in a nice way
