@@ -13,7 +13,7 @@ def create_rating_matrix(ratings_file_path, top_num=100):
     Creates a rating matrix from the MovieLens ratings file.
 
     Parameters:
-    ratings_file_path (str): The file path to the MovieLens ratings.dat file.
+    ratings_file_path (str): The file path to the MovieLens rating.dat file.
 
     Returns:
     np.ndarray: A 2D numpy array where rows represent users, columns represent movies,
