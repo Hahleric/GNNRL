@@ -64,24 +64,29 @@ class Environment():
         :param v2i_rate: vehicle to infrastructure rate of requesting vehicles, shape(Covered_Vehicles, )
         :return: state_, reward, cache_efficiency, request_delay
         """
+        # Const for replace num
+        REPLAY_NUM = 10
         all_vehicle_request_num = 0
-
+        print("action: ", action)
         for i in range(len(request_dataset)):
             all_vehicle_request_num += len(request_dataset[i])
         if action == 1:
+            print("len(self.remaining_content)", len(self.remaining_content))
+            num_to_replace = min(REPLAY_NUM, len(self.remaining_content), len(self.cached_files))
 
-            if len(self.remaining_content) >= 5:
-                replace_content = random.sample(list(self.remaining_content), 5)
-                count = 0
-                if count < 5:
-                    self.cached_files[-count - 1] = replace_content[count]
-                    count += 1
-            else:
-                replace_content = self.remaining_content
-            count = 0
-            if count < 5:
-                self.cached_files[-count - 1] = replace_content[count]
-                count += 1
+            if num_to_replace > 0:
+                # 从剩余内容中随机选择文件作为替换内容
+                replace_content = random.sample(list(self.remaining_content), num_to_replace)
+
+                # 随机选择要替换的缓存文件的位置
+                replace_indices = random.sample(range(len(self.cached_files)), num_to_replace)
+
+                # 进行替换
+                for index, content in zip(replace_indices, replace_content):
+                    self.cached_files[index] = content
+
+                # 更新remaining_content
+                self.remaining_content = [file for file in self.remaining_content if file not in replace_content]
 
             cache_files = []
             for i in range(len(self.popular_file)):
@@ -121,12 +126,14 @@ class Environment():
 
             # print(i,'mbs delay',(vehicle_request_num[vehicle_idx] / v2i_rate_mbs[vehicle_idx]) *100000)
         request_delay = request_delay / request_dataset.shape[0] * 1000
-        # if print_step % 2 == 1:
+        # if print_step % 50 == 0:
 
         print("---------------------------------------------")
+        # print("cached files", self.cached_files)
         print('all_vehicle_request_num', all_vehicle_request_num)
         print('step:{} RSU1 cache_efficiency:{}'.format(print_step, cache_efficiency))
         print('step', print_step, 'request delay:%f' % (request_delay))
+        print('step', print_step, 'reward:%f' % (reward))
         print("---------------------------------------------")
         return self.state, reward, cache_efficiency, request_delay
 

@@ -22,13 +22,15 @@ class ActorGCN(nn.Module):
             # if the current state
             # 这里的input feature只有一个是某一辆车的目前推荐的电影
             # concatenate the state_remaining and edge_attr
-            print("state shape", state.shape)
-            print("edge_index shape", edge_index.shape)
-            print("edge_index", edge_index)
-            print("edge_attr shape", edge_attr.shape)
             state = torch.reshape(state, (-1, edge_attr.shape[1]))
             node_features = torch.cat((state, edge_attr), dim=0)
+            # for name, param in self.gcn1.named_parameters():
+            #     print(f"{name}: {param.size()}")
+            #     if param.requires_grad:
+            #         print(f"Requires grad: {name}")
+            #         print(param.data)
             x = self.gcn1(node_features, edge_index)
+
         else:
             # if the next state
             next_state = x.next_state
@@ -49,17 +51,19 @@ class CriticGCN(nn.Module):
         self.model_sequence2 = nn.Linear(hidden_dim, 1)
 
     def forward(self, x, current_state=True):
-        state,  edge_index, edge_attr = x.state_, x.edge_index, x.edge_attr
+        state,  edge_index, edge_attr = x.state, x.edge_index, x.edge_attr
 
         if current_state:
-            node_features = torch.cat((state.unsqueeze(0), edge_attr), dim=0)
+            state = torch.reshape(state, (-1, edge_attr.shape[1]))
+            node_features = torch.cat((state, edge_attr), dim=0)
             x = self.gcn1(node_features, edge_index)
             x = F.relu(x)
             x = self.gcn2(x, edge_index)
         else:
             # if the next state
-            next_state = x.next_state
-            next_node_features = torch.cat((next_state.unsqueeze(0), edge_attr), dim=0)
+            next_state = x.state
+            next_state = torch.reshape(next_state, (-1, edge_attr.shape[1]))
+            next_node_features = torch.cat((next_state, edge_attr), dim=0)
             x = self.gcn1(next_node_features, edge_index)
             x = F.relu(x)
             x = self.gcn2(x, edge_index)

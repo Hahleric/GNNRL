@@ -15,7 +15,7 @@ class GCNAgent:
     This class is responsible for the creation of the GCN agent.
     """
 
-    def __init__(self, cache_size, feature_dim, batch_size, learning_rate=0.01, gamma=0.99, buffer_size=1000):
+    def __init__(self, cache_size, feature_dim, batch_size, learning_rate=0.000001, gamma=0.99, buffer_size=1000):
         """
 
         :param cache_size: cache_size of current RSU
@@ -32,7 +32,7 @@ class GCNAgent:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.actor = ActorGCN(self.feature_dim).to(self.device)
-        self.critic = CriticGCN().to(self.device)
+        self.critic = CriticGCN(self.feature_dim).to(self.device)
 
         # TODO: hyperparameter tuning for weight_decay
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=learning_rate, weight_decay=1e-7)
@@ -40,7 +40,7 @@ class GCNAgent:
 
         self.MSE_loss = nn.MSELoss()
 
-    def get_action(self, state, edge_index, edge_attr, eps=0.10):
+    def get_action(self, state, edge_index, edge_attr, eps=0.1):
         """
         Get the action for the current state
         :param edge_index:
@@ -55,8 +55,7 @@ class GCNAgent:
         # state = torch.DoubleTensor(state).to(self.device)
         edge_index = torch.LongTensor(edge_index).to(self.device)
 
-        data = Data(state=state,edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
-        assert data.edge_index.max() < data.num_nodes
+        data = Data(state=state, edge_index=edge_index, edge_attr=edge_attr, num_nodes=(edge_index.shape[1] // 2) + 1)
         action_prob = self.actor(data, True)
         m = Categorical(action_prob[0])
         action = m.sample().item()
@@ -76,23 +75,24 @@ class GCNAgent:
         data_loader = self.replay_buffer.sample(batch_size)
         if data_loader:
             for batch_idx, data in enumerate(data_loader):
-                state = data.state.to(self.device)
-                reward = data.reward.to(self.device)
-                next_state = data.next_state.to(self.device)
-                terminal = data.terminal.to(self.device)
+                state = data[batch_idx].state.to(self.device)
+                reward = data[batch_idx].reward.to(self.device)
+                next_state = data[batch_idx].next_state.to(self.device)
+                terminal = data[batch_idx].terminal.to(self.device)
 
                 # 计算当前状态的动作概率和价值
-                x_current = Data(state=state, edge_index=data.edge_index, edge_attr=data.edge_attr)
+                x_current = Data(state=state, edge_index=data[batch_idx].edge_index, edge_attr=data[batch_idx].edge_attr)
                 current_action_probs = self.actor(x_current)
                 current_value = self.critic(x_current).squeeze()
 
                 # 计算下一个状态的价值
-                x_next = Data(state=next_state, edge_index=data.edge_index, edge_attr=data.edge_attr)
+                x_next = Data(state=next_state, edge_index=data[batch_idx].edge_index, edge_attr=data[batch_idx].edge_attr)
                 next_value = self.critic(x_next, False).squeeze()
 
                 # 计算目标值和优势
                 target_value = reward + self.gamma * next_value * (1 - terminal)
                 advantage = target_value - current_value
+                advantage = advantage.unsqueeze(-1)
 
                 # 计算Critic的损失
                 critic_loss = (advantage.pow(2)).mean()
@@ -153,15 +153,15 @@ def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
             #  action = agent.get_action(node_features, edge_index, edge_attr)
             action = agent.get_action(state, edge_index, edge_attr)
             # TODO add edge_index, edge_attr right here.
-            next_state, reward, cache_efficiency, request_delay= env.step(action, request_dataset, v2i_rate, step)
+            next_state, reward, cache_efficiency, request_delay = env.step(action, request_dataset, v2i_rate, step)
             agent.replay_buffer.add(state, action, reward, terminal, next_state, edge_index, edge_attr)
             episode_reward += reward
 
             agent.optimize_model(batch_size)
 
-            # if len(agent.replay_buffer) > batch_size:
-            if agent.replay_buffer.length() % batch_size == 0:
-                agent.update(batch_size)
+            # # if len(agent.replay_buffer) > batch_size:
+            # if agent.replay_buffer.length() % batch_size == 0:
+            #     agent.optimize_model(batch_size)
 
             if step == max_steps - 1:
                 episode_rewards.append(episode_reward)
