@@ -1,6 +1,8 @@
 import numpy
 import os
 
+import regular_cache_enviroment
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 import GCNAgent
@@ -67,3 +69,6 @@ if __name__ == '__main__':
                                                                         sampled_request_movies,
                                                                         sampled_v2i_rate
                                                                         )
+
+    env = regular_cache_enviroment.RegularEnvironment(cache_size, sampled_top_50_movies, sampled_request_movies)
+    env.calculate_base_policy()

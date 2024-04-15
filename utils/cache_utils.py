@@ -18,6 +18,8 @@ def cache_hit_ratio(test_dataset, cache_items, request_num):
         count = Counter(item)
         for cache_item in cache_items:
             cache_hits += count[cache_item]
+    print("cache_hits: ", cache_hits)
+    print("request_nums", request_items.shape[0] * request_items.shape[1])
     hit_ratio = cache_hits / (request_items.shape[0] * request_items.shape[1]) * 100
     # print("popular_items: ", popular_items)
     return hit_ratio
