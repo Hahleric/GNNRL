@@ -22,7 +22,7 @@ class Environment():
         self.action_space = [0, 1]
         self.reward = 0
         self.cached_files = []
-        self.init_n_veh = recommend_list.shape[0]
+        self.init_n_veh = len(recommend_list)
         # MBS and RSU + initial number of vehicles
         self.init_n_node = 1 + self.init_n_veh
         self.init_edge_index = get_edge_index(self.init_n_veh)
@@ -54,6 +54,8 @@ class Environment():
         self.init_cached_files = self.cached_files.copy()
         self.init_remaining_content = self.remaining_content.copy()
         self.init_node_features = recommend_list
+        print('init_node_features', self.init_node_features)
+        print('pop_file', self.popular_file)
         self.init_node_features = np.insert(self.init_node_features, 0, popular_file, axis=0)
         self.node_features = self.init_node_features.copy()
         self.init_state = self.init_cached_files + self.init_remaining_content
@@ -74,7 +76,6 @@ class Environment():
             all_vehicle_request_num += len(request_dataset[i])
         if action == 1:
             print("len(self.remaining_content)", len(self.remaining_content))
-            # TODO 通过cache hit ratio来判断哪些文件被request最多，哪些目前来说最少，然后替换最少的文件
             num_to_replace = min(REPLAY_NUM, len(self.remaining_content), len(self.cached_files))
 
             if num_to_replace > 0:

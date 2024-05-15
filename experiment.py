@@ -2,6 +2,7 @@ import numpy
 import os
 
 import regular_cache_enviroment
+from utils.GraphSampler import GraphSampler
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -45,29 +46,26 @@ if __name__ == '__main__':
     sampled_request_movies = top_num_movies[random_idx, :]
     sampled_veh_dis = vehicle_dis[random_idx]
 
-
     # 将所有采样用户的电影合并成一个一维数组
     all_sampled_movies = sampled_request_movies.flatten()
-
     # 计算每部电影出现的次数
     unique_movies, counts = np.unique(all_sampled_movies, return_counts=True)
 
     # 获取出现次数最多的50部电影的索引
     top_50_indices = np.argsort(counts)[-REQUESTED_MOVIES:]
 
-    # 使用这些索引获取电影ID
-    sampled_top_50_movies = unique_movies[top_50_indices]
+    graph_sampler = GraphSampler(data_set_path, COVERED_VEH, REQUESTED_MOVIES)
+    sampled_top_50_movies = graph_sampler.get_recomended_movies()
+    data = graph_sampler.sample_movie()
+    sampled_request_movies = graph_sampler.get_node_features()
 
-    # 现在 top_50_movies 包含了在所有采样用户中最受欢迎的50部电影
-    sampled_top_50_movies = np.nan_to_num(sampled_top_50_movies)
-    # node_features
-    sampled_request_movies = np.nan_to_num(sampled_request_movies)
     env = environment.Environment(cache_size, sampled_top_50_movies, sampled_request_movies)
     agent = Agent.GCNAgent(cache_size, REQUESTED_MOVIES, 32)
     episode_rewards, cache_efficiency, request_delay = mini_batch_train(env, agent, 30, 100,
                                                                         16,
-                                                                        sampled_request_movies,
-                                                                        sampled_v2i_rate
+                                                                        data,
+                                                                        sampled_v2i_rate,
+                                                                        graph_sampler,
                                                                         )
 
     env = regular_cache_enviroment.RegularEnvironment(cache_size, sampled_top_50_movies, sampled_request_movies)
