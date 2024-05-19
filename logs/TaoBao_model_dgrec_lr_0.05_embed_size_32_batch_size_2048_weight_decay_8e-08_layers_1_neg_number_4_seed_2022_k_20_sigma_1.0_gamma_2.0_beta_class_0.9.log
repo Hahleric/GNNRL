@@ -1,0 +1,6 @@
+Wed, 15 May 2024 21:44:14  INFO loadding data
+Wed, 15 May 2024 21:44:14  INFO reading category information
+Wed, 15 May 2024 21:44:26  INFO reading train data
+Wed, 15 May 2024 21:44:34  INFO reading valid data
+Wed, 15 May 2024 21:44:37  INFO reading test data
+Wed, 15 May 2024 21:44:38  INFO get weight for each sample

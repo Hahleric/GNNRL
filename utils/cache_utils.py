@@ -11,14 +11,17 @@ def cache_hit_ratio(test_dataset, cache_items, request_num):
     """
 
     # TODO why is this here test_dataset[:, 1]? it may be a bug which should be
-    # TODO generalized to other datasets
-    request_items = test_dataset[:request_num, 1]
-    count = Counter(request_items)
+    # TODO generalized to other
+    request_items = test_dataset[:request_num, :]
     cache_hits = 0
-    for item in cache_items:
-        cache_hits += count[item]
-    hit_ratio = cache_hits / len(request_items) * 100
-
+    for item in request_items:
+        count = Counter(item)
+        for cache_item in cache_items:
+            cache_hits += count[cache_item]
+    print("cache_hits: ", cache_hits)
+    print("request_nums", request_items.shape[0] * request_items.shape[1])
+    hit_ratio = cache_hits / (request_items.shape[0] * request_items.shape[1]) * 100
+    # print("popular_items: ", popular_items)
     return hit_ratio
 
 
