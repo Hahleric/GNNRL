@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def get_edge_index(vehicle_num):
     """
     Get the edge index
@@ -9,6 +10,7 @@ def get_edge_index(vehicle_num):
     edges = [(0, i + 1) for i in range(vehicle_num)] + [(i + 1, 0) for i in range(vehicle_num)]
     edges = np.array(edges, dtype=np.int64)
     return edges
+
 
 def get_edge_attr(edge_index, feature):
     """
@@ -23,6 +25,7 @@ def get_edge_attr(edge_index, feature):
     for i in range(edge_index.shape[0] // 2):
         edge_attr.append(feature[i])
     return edge_attr
+
 
 if __name__ == "__main__":
     vehicle_num = 10

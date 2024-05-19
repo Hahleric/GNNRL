@@ -53,9 +53,9 @@ class ReplayBufferGNN(ReplayBuffer):
 
     # add: add a transition (s, a, r, s2, d)
     # add Data object directly
-    def add(self, s, a, r, s2, d, edge_index, edge_attr):
+    def add(self, s, a, r, s2, terminal, edge_index, scores):
         # self.buf.append((s, a, r, s2, d))
-        state, action, reward, next_state, terminal = s, a, r, s2, d
+        state,  action, reward, terminal, next_state = s, a, r, s2, terminal
 
         state = torch.tensor(state, dtype=torch.float)
         action = torch.tensor(action, dtype=torch.long)
@@ -63,10 +63,15 @@ class ReplayBufferGNN(ReplayBuffer):
         next_state = torch.tensor(next_state, dtype=torch.float)
         terminal = torch.tensor(terminal, dtype=torch.long)
 
-        edge_idnex = torch.tensor(edge_index, dtype=torch.long)
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
-        mask = torch.tensor(mask, dtype=torch.bool)
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
+        scores = torch.tensor(scores, dtype=torch.float)
         num_nodes = state.shape[0]
-        data = Data(state=state, action=action, reward=reward, next_state=next_state, terminal=terminal,
-                    edge_index=edge_index, edge_attr=edge_attr, mask=mask, num_nodes=num_nodes)
+        data = Data(state=state,  action=action, reward=reward, next_state=next_state, terminal=terminal,
+                    edge_index=edge_index, scores=scores, num_nodes=num_nodes)
         self.buf.append(data)
+
+    def length(self):
+        return len(self.buf)
+
+    # def clear(self):
+    #     self.buf = collections.deque(maxlen=N)
