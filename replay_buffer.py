@@ -53,7 +53,7 @@ class ReplayBufferGNN(ReplayBuffer):
 
     # add: add a transition (s, a, r, s2, d)
     # add Data object directly
-    def add(self, s, a, r, s2, terminal, edge_index, edge_attr):
+    def add(self, s, a, r, s2, terminal, edge_index, scores):
         # self.buf.append((s, a, r, s2, d))
         state,  action, reward, terminal, next_state = s, a, r, s2, terminal
 
@@ -64,10 +64,10 @@ class ReplayBufferGNN(ReplayBuffer):
         terminal = torch.tensor(terminal, dtype=torch.long)
 
         edge_index = torch.tensor(edge_index, dtype=torch.long)
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+        scores = torch.tensor(scores, dtype=torch.float)
         num_nodes = state.shape[0]
         data = Data(state=state,  action=action, reward=reward, next_state=next_state, terminal=terminal,
-                    edge_index=edge_index, edge_attr=edge_attr, num_nodes=num_nodes)
+                    edge_index=edge_index, scores=scores, num_nodes=num_nodes)
         self.buf.append(data)
 
     def length(self):
