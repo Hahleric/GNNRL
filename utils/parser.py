@@ -42,6 +42,7 @@ def parse_args():
                         help = 'class re-balanced loss beta')
     parser.add_argument('--cache_size', default = 100, type = int,
                         help = 'cache size for cache environment')
+    parser.add_argument('--vehicle_num', default = 20, type = int,)
 
     args = parser.parse_args()
     return args

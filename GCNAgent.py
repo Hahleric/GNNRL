@@ -28,7 +28,7 @@ class GCNAgent:
         self.cache_size = args.cache_size
         self.args = args
         # TODO: 改dimension
-        self.feature_dim = 136710
+        self.feature_dim = 500
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.batch_size = self.args.batch_size

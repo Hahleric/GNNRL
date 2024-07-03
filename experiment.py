@@ -92,6 +92,7 @@ class Experiment(object):
         self.replace_num = 10
         self.environment = environment
         self.agent = agent
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         V2I_min = 100  # minimum required data rate for V2I Communication
         bandwidth = int(540000)
         bandwidth_mbs = int(1000000)
@@ -160,23 +161,26 @@ class Experiment(object):
 
                 items_ready_to_cache = []
                 scores = []
+                request_dataset = set()
                 for i in covered_vehicles:
                     vehicle_items = test_items[500*i.time_stamp: (i.time_stamp+1) * 500]
                     score = self.model.get_score_by_user_item(h, i.user_number, vehicle_items)
                     score = score.squeeze(0)
-                    scores.append(score)
+                    scores.append(score.tolist())
                     score, score_indices = torch.sort(score, descending=True)
                     sorted_items = [vehicle_items[i] for i in score_indices]
                     items_ready_to_cache.append(sorted_items[:5])
+                    for j in vehicle_items:
+                        request_dataset.add(j)
+                request_dataset = list(request_dataset)
                 items_ready_to_cache = list(itertools.chain.from_iterable(items_ready_to_cache))
-
                 # scores = [score[:self.args.k_list] for score in scores]
                 steps += 1
-                state = torch.tensor(state, dtype=torch.float32)
-                scores = torch.tensor(scores, dtype=torch.float32)
-                node_feature = torch.cat([state, scores], dim=0)
-                edge_index = self.create_star_graph_edge_index(self.args.batch_size)
-                data = Data(x=node_feature, edge_index=edge_index)
+                state = torch.tensor(state, dtype=torch.float32).to(self.device)
+                scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
+                node_feature = torch.cat([state, scores], dim=0).to(self.device)
+                edge_index = self.create_star_graph_edge_index(self.args.batch_size).to(self.device)
+                data = Data(node_feature=node_feature, edge_index=edge_index)
                 action, rsu_embedding = self.agent.get_action(data)
                 next_state, reward, cache_efficiency, request_delay = self.environment.step(
                     action,

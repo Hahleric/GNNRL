@@ -1,7 +1,7 @@
 from collections import Counter
 
 
-def cache_hit_ratio(test_dataset, cache_items, request_num):
+def cache_hit_ratio(test_dataset, cache_items):
     """
     计算缓存命中率
     :param test_dataset: user_group_test[0-9] dataset
@@ -12,15 +12,15 @@ def cache_hit_ratio(test_dataset, cache_items, request_num):
 
     # TODO why is this here test_dataset[:, 1]? it may be a bug which should be
     # TODO generalized to other
-    request_items = test_dataset[:request_num, :]
+    request_items = test_dataset
     cache_hits = 0
-    for item in request_items:
-        count = Counter(item)
-        for cache_item in cache_items:
-            cache_hits += count[cache_item]
+    print(cache_items)
+    print(test_dataset)
+    count = Counter(request_items)
+    for cache_item in cache_items:
+        cache_hits += count[cache_item]
     print("cache_hits: ", cache_hits)
-    print("request_nums", request_items.shape[0] * request_items.shape[1])
-    hit_ratio = cache_hits / (request_items.shape[0] * request_items.shape[1]) * 100
+    hit_ratio = cache_hits / len(request_items) * 100
     # print("popular_items: ", popular_items)
     return hit_ratio
 

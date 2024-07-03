@@ -18,15 +18,13 @@ class ActorGCN(nn.Module):
     def forward(self, x, current_state=True):
         node_feature, edge_index = x.node_feature, x.edge_index
         if current_state:
-
+            print(node_feature.shape)
+            print(edge_index.shape)
             x = self.gcn1(node_feature, edge_index)
 
         else:
-            # if the next state
-            next_state = x.next_state
-            next_state = torch.reshape(next_state, (-1, edge_attr.shape[1]))
-            next_node_features = torch.cat((next_state, edge_attr), dim=0)
-            x = self.gcn1(next_node_features, edge_index)
+
+            x = self.gcn1(node_feature, edge_index)
         x = self.model_sequence1(x)
         action_prob = self.softmax(x)
         rsu_embedding = x
