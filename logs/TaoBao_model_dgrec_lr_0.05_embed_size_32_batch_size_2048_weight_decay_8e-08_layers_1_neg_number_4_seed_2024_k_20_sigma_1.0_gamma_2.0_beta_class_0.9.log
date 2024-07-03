@@ -1,0 +1,9 @@
+Wed, 03 Jul 2024 12:34:55  INFO loadding data
+Wed, 03 Jul 2024 12:34:55  INFO reading category information
+Wed, 03 Jul 2024 12:35:04  INFO reading train data
+Wed, 03 Jul 2024 12:35:10  INFO reading valid data
+Wed, 03 Jul 2024 12:35:12  INFO reading test data
+Wed, 03 Jul 2024 12:35:14  INFO get weight for each sample
+Wed, 03 Jul 2024 12:35:20  INFO train loss = 0.338776558637619
+Wed, 03 Jul 2024 12:35:33  INFO loss: 0.3797968924045563, Performance is better... saving the model
+Wed, 03 Jul 2024 12:35:33  INFO loading best model for RL
