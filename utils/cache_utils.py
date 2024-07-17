@@ -14,15 +14,14 @@ def cache_hit_ratio(test_dataset, cache_items):
     # TODO generalized to other
     request_items = test_dataset
     cache_hits = 0
-    print(cache_items)
-    print(test_dataset)
     count = Counter(request_items)
     for cache_item in cache_items:
-        cache_hits += count[cache_item]
-    print("cache_hits: ", cache_hits)
-    hit_ratio = cache_hits / len(request_items) * 100
+        if cache_item.file_id in test_dataset:
+            cache_hits += 1
+            cache_item.hits += 1
+    hit_ratio = cache_hits / len(cache_items) * 100
     # print("popular_items: ", popular_items)
-    return hit_ratio
+    return hit_ratio, cache_items
 
 
 def cache_hit_ratio2(test_dataset, cache_items, cache_items2, request_num):

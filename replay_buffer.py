@@ -9,7 +9,7 @@ from torch_geometric.loader import DataLoader
 
 import logging
 
-
+device ='cuda' if torch.cuda.is_available() else 'cpu'
 # Replay buffer
 class ReplayBuffer:
 
@@ -53,20 +53,20 @@ class ReplayBufferGNN(ReplayBuffer):
 
     # add: add a transition (s, a, r, s2, d)
     # add Data object directly
-    def add(self, s, a, r, s2, terminal, edge_index, scores):
+    def add(self, n_f, a, r, s2, terminal, edge_index, scores):
         # self.buf.append((s, a, r, s2, d))
-        state,  action, reward, terminal, next_state = s, a, r, s2, terminal
+        node_feature,  action, reward, terminal, next_state = n_f, a, r, s2, terminal
 
-        state = torch.tensor(state, dtype=torch.float)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float)
-        next_state = torch.tensor(next_state, dtype=torch.float)
-        terminal = torch.tensor(terminal, dtype=torch.long)
+        node_feature = torch.tensor(node_feature, dtype=torch.float).to(device)
+        action = torch.tensor(action, dtype=torch.long).to(device)
+        reward = torch.tensor(reward, dtype=torch.float).to(device)
+        next_state = torch.tensor(next_state, dtype=torch.float).to(device)
+        terminal = torch.tensor(terminal, dtype=torch.long).to(device)
 
-        edge_index = torch.tensor(edge_index, dtype=torch.long)
-        scores = torch.tensor(scores, dtype=torch.float)
-        num_nodes = state.shape[0]
-        data = Data(state=state,  action=action, reward=reward, next_state=next_state, terminal=terminal,
+        edge_index = torch.tensor(edge_index, dtype=torch.long).to(device)
+        scores = torch.tensor(scores, dtype=torch.float).to(device)
+        num_nodes = node_feature.shape[0]
+        data = Data(node_feature=node_feature,  action=action, reward=reward, next_state=next_state, terminal=terminal,
                     edge_index=edge_index, scores=scores, num_nodes=num_nodes)
         self.buf.append(data)
 

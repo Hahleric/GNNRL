@@ -28,10 +28,10 @@ class GCNAgent:
         self.cache_size = args.cache_size
         self.args = args
         # TODO: 改dimension
-        self.feature_dim = 500
+        self.feature_dim = args.feature_dim
         self.learning_rate = learning_rate
         self.gamma = gamma
-        self.batch_size = self.args.batch_size
+        self.batch_size = self.args.rl_batch_size
         self.replay_buffer = ReplayBufferGNN(buffer_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,7 +57,7 @@ class GCNAgent:
         action = m.sample().item()
         if np.random.rand() < eps:
             action = random.randint(0, 1)
-            return action
+            return action, rsu_embedding
         return action, rsu_embedding
 
     def optimize_model(self, batch_size):
@@ -71,19 +71,18 @@ class GCNAgent:
         data_loader = self.replay_buffer.sample(batch_size)
         if data_loader:
             for batch_idx, data in enumerate(data_loader):
-                state = data[batch_idx].state.to(self.device)
+                node_feature = data[batch_idx].node_feature.to(self.device)
                 reward = data[batch_idx].reward.to(self.device)
                 next_state = data[batch_idx].next_state.to(self.device)
                 terminal = data[batch_idx].terminal.to(self.device)
                 scores = data[batch_idx].scores.to(self.device)
                 # 计算当前状态的动作概率和价值
-                x_current = Data(state=state, edge_index=data[batch_idx].edge_index, edge_attr=data[batch_idx].edge_attr)
-                current_action_probs = self.actor(x_current)
-                current_value = self.critic(x_current).squeeze()
+                x_current = Data(node_feature=node_feature, edge_index=data[batch_idx].edge_index)
+                current_action_probs, _ = self.actor(x_current)
+                current_value = self.critic(node_feature[0]).squeeze()
 
                 # 计算下一个状态的价值
-                x_next = Data(state=next_state, edge_index=data[batch_idx].edge_index, edge_attr=data[batch_idx].edge_attr)
-                next_value = self.critic(x_next, False).squeeze()
+                next_value = self.critic(next_state).squeeze()
 
 
                 # 计算目标值和优势

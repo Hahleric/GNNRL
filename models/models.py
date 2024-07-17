@@ -89,15 +89,9 @@ class DGRec(BaseGraphModel):
 
     def layer_attention(self, ls, W, a):
         tensor_layers = torch.stack(ls, dim = 0)
-        print("++++++++++++++++++++++++++++++++++++++++++++++")
-        print("tensor_layer's shape ", tensor_layers.shape)
         weight = torch.matmul(tensor_layers, W)
-        print("weight's shape ", weight.shape)
         weight = F.softmax(torch.matmul(weight, a), dim = 0).unsqueeze(-1)
-        print("weight's shape ", weight.shape)
         tensor_layers = torch.sum(tensor_layers * weight, dim = 0)
-        print("tensor_layer's shape ", tensor_layers.shape)
-        print("++++++++++++++++++++++++++++++++++++++++++++++")
         return tensor_layers
         # shape
 

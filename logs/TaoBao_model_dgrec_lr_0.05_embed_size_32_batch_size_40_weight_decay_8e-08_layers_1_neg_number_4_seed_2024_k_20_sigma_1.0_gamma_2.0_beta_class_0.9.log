@@ -1,0 +1,67 @@
+Wed, 17 Jul 2024 18:05:09  INFO loadding data
+Wed, 17 Jul 2024 18:05:09  INFO reading category information
+Wed, 17 Jul 2024 18:05:18  INFO reading train data
+Wed, 17 Jul 2024 18:05:25  INFO reading valid data
+Wed, 17 Jul 2024 18:05:27  INFO reading test data
+Wed, 17 Jul 2024 18:05:29  INFO get weight for each sample
+Wed, 17 Jul 2024 18:05:35  INFO train loss = 0.338776558637619
+Wed, 17 Jul 2024 18:05:47  INFO loss: 0.3798041045665741, Performance is better... saving the model
+Wed, 17 Jul 2024 18:05:53  INFO train loss = 0.30568239092826843
+Wed, 17 Jul 2024 18:06:05  INFO loss: 0.3598781228065491, Performance is better... saving the model
+Wed, 17 Jul 2024 18:06:11  INFO train loss = 0.276557058095932
+Wed, 17 Jul 2024 18:06:23  INFO loss: 0.3405173718929291, Performance is better... saving the model
+Wed, 17 Jul 2024 18:06:29  INFO train loss = 0.25403958559036255
+Wed, 17 Jul 2024 18:06:41  INFO loss: 0.32651615142822266, Performance is better... saving the model
+Wed, 17 Jul 2024 18:06:47  INFO train loss = 0.23675185441970825
+Wed, 17 Jul 2024 18:06:59  INFO loss: 0.3151822090148926, Performance is better... saving the model
+Wed, 17 Jul 2024 18:07:05  INFO train loss = 0.22200338542461395
+Wed, 17 Jul 2024 18:07:17  INFO loss: 0.30373820662498474, Performance is better... saving the model
+Wed, 17 Jul 2024 18:07:23  INFO train loss = 0.2094162106513977
+Wed, 17 Jul 2024 18:07:35  INFO loss: 0.2939044237136841, Performance is better... saving the model
+Wed, 17 Jul 2024 18:07:41  INFO train loss = 0.1984443962574005
+Wed, 17 Jul 2024 18:07:53  INFO loss: 0.2841053307056427, Performance is better... saving the model
+Wed, 17 Jul 2024 18:07:58  INFO train loss = 0.18877862393856049
+Wed, 17 Jul 2024 18:08:11  INFO loss: 0.2749730944633484, Performance is better... saving the model
+Wed, 17 Jul 2024 18:08:16  INFO train loss = 0.18052414059638977
+Wed, 17 Jul 2024 18:08:29  INFO loss: 0.2673942744731903, Performance is better... saving the model
+Wed, 17 Jul 2024 18:08:34  INFO train loss = 0.17326012253761292
+Wed, 17 Jul 2024 18:08:47  INFO loss: 0.26011666655540466, Performance is better... saving the model
+Wed, 17 Jul 2024 18:08:52  INFO train loss = 0.1669159233570099
+Wed, 17 Jul 2024 18:09:05  INFO loss: 0.25292104482650757, Performance is better... saving the model
+Wed, 17 Jul 2024 18:09:10  INFO train loss = 0.1612606644630432
+Wed, 17 Jul 2024 18:09:23  INFO loss: 0.24772858619689941, Performance is better... saving the model
+Wed, 17 Jul 2024 18:09:28  INFO train loss = 0.15627245604991913
+Wed, 17 Jul 2024 18:09:40  INFO loss: 0.24125966429710388, Performance is better... saving the model
+Wed, 17 Jul 2024 18:09:46  INFO train loss = 0.15155068039894104
+Wed, 17 Jul 2024 18:09:58  INFO loss: 0.23577101528644562, Performance is better... saving the model
+Wed, 17 Jul 2024 18:10:04  INFO train loss = 0.14762987196445465
+Wed, 17 Jul 2024 18:10:17  INFO loss: 0.23139962553977966, Performance is better... saving the model
+Wed, 17 Jul 2024 18:10:22  INFO train loss = 0.14386656880378723
+Wed, 17 Jul 2024 18:10:34  INFO loss: 0.22590956091880798, Performance is better... saving the model
+Wed, 17 Jul 2024 18:10:40  INFO train loss = 0.14059193432331085
+Wed, 17 Jul 2024 18:10:52  INFO loss: 0.2222348153591156, Performance is better... saving the model
+Wed, 17 Jul 2024 18:10:58  INFO train loss = 0.13744144141674042
+Wed, 17 Jul 2024 18:11:10  INFO loss: 0.2185901552438736, Performance is better... saving the model
+Wed, 17 Jul 2024 18:11:16  INFO train loss = 0.1347913146018982
+Wed, 17 Jul 2024 18:11:28  INFO loss: 0.21498166024684906, Performance is better... saving the model
+Wed, 17 Jul 2024 18:11:34  INFO train loss = 0.13225390017032623
+Wed, 17 Jul 2024 18:11:46  INFO loss: 0.21219412982463837, Performance is better... saving the model
+Wed, 17 Jul 2024 18:11:52  INFO train loss = 0.13009107112884521
+Wed, 17 Jul 2024 18:12:04  INFO loss: 0.20954611897468567, Performance is better... saving the model
+Wed, 17 Jul 2024 18:12:09  INFO train loss = 0.1278807818889618
+Wed, 17 Jul 2024 18:12:22  INFO loss: 0.20720559358596802, Performance is better... saving the model
+Wed, 17 Jul 2024 18:12:27  INFO train loss = 0.12603750824928284
+Wed, 17 Jul 2024 18:12:40  INFO loss: 0.20449337363243103, Performance is better... saving the model
+Wed, 17 Jul 2024 18:12:45  INFO train loss = 0.12436556071043015
+Wed, 17 Jul 2024 18:12:58  INFO loss: 0.20229312777519226, Performance is better... saving the model
+Wed, 17 Jul 2024 18:13:03  INFO train loss = 0.12264768779277802
+Wed, 17 Jul 2024 18:13:16  INFO loss: 0.20052887499332428, Performance is better... saving the model
+Wed, 17 Jul 2024 18:13:22  INFO train loss = 0.12103661894798279
+Wed, 17 Jul 2024 18:13:35  INFO loss: 0.1988995522260666, Performance is better... saving the model
+Wed, 17 Jul 2024 18:13:41  INFO train loss = 0.11967945098876953
+Wed, 17 Jul 2024 18:13:53  INFO loss: 0.19708691537380219, Performance is better... saving the model
+Wed, 17 Jul 2024 18:13:59  INFO train loss = 0.11824857443571091
+Wed, 17 Jul 2024 18:14:12  INFO loss: 0.19573339819908142, Performance is better... saving the model
+Wed, 17 Jul 2024 18:14:18  INFO train loss = 0.11680540442466736
+Wed, 17 Jul 2024 18:14:30  INFO loss: 0.1943044662475586, Performance is better... saving the model
+Wed, 17 Jul 2024 18:14:30  INFO loading best model for RL
