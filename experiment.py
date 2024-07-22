@@ -86,7 +86,7 @@ class Experiment(object):
             episode_cache_efficiencies = []
             print("____________", episode, " Started " + "__________")
             test_items = random.sample(self.test_items, 10000)
-            while steps < 300:
+            while steps < 200:
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
@@ -142,7 +142,7 @@ class Experiment(object):
                 self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores)
                 episode_reward += reward
 
-                if steps > 200:
+                if steps > 100:
                     episode_cache_efficiencies.append(cache_efficiency)
 
                 self.agent.optimize_model(self.args.rl_batch_size)
