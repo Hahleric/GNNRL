@@ -302,7 +302,7 @@ class Experiment(object):
             episode_cache_efficiencies = []
             print("____________", episode, " Started " + "__________")
             test_items = random.sample(self.test_items, 10000)
-            while steps < 500:
+            while steps < 1000:
                 regular_items = random.sample(test_items, self.args.vehicle_num * 5)
                 for i in regular_items:
                     self.fifo_cache.put(i)
