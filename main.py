@@ -98,5 +98,5 @@ if __name__ == '__main__':
     h = model.get_embedding()
     agent = GCNAgent.GCNAgent(args)
     exp = experiment.Experiment(args, model, dataloader, environment, agent)
-    episode_rewards, cache_efficiency, request_delay = exp.start()
+    episode_rewards, cache_efficiency, request_delay = exp.start_without_recommender()
 
