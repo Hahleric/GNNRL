@@ -1,4 +1,4 @@
-from torch_geometric.nn import GATConv, GCNConv
+from torch_geometric.nn import GATConv, GCNConv, TransformerConv
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -65,4 +65,59 @@ class CriticGCN(nn.Module):
 #
 #         x = self.model_sequence2(x)
 #         return x
+
+class GATActor(nn.Module):
+    def __init__(self, node_feature_dim=20, hidden_dim=500, output_dim=2):
+        super(GATActor, self).__init__()
+        self.heads = 4
+        # 使用PyTorch Geometric的GCN层
+        self.gcn1 = GATConv(node_feature_dim, hidden_dim, heads=self.heads)
+        self.batch_norm = nn.BatchNorm1d(hidden_dim)
+        self.linear = nn.Linear(hidden_dim * self.heads, output_dim)
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x, current_state=True):
+        node_feature, edge_index = x.node_feature, x.edge_index
+        if current_state:
+            x = self.gcn1(node_feature, edge_index)
+
+        else:
+
+            x = self.gcn1(node_feature, edge_index)
+        x = self.batch_norm(x)
+        rsu_embedding = x[0].unsqueeze(0)
+        x = self.linear(x)
+        x = self.relu(x)
+        action_prob = self.softmax(x)
+
+        return action_prob, rsu_embedding
+
+class TransActor(nn.Module):
+    def __init__(self, node_feature_dim=20, hidden_dim=500, output_dim=2):
+        super(TransActor, self).__init__()
+        self.heads = 4
+        # 使用PyTorch Geometric的GCN层
+        self.gcn1 = TransformerConv(node_feature_dim, hidden_dim, heads=self.heads)
+        self.gcn2 = TransformerConv(hidden_dim, hidden_dim, heads=self.heads)
+        self.batch_norm = nn.BatchNorm1d(hidden_dim)
+
+        self.linear = nn.Linear(hidden_dim * self.heads, output_dim)
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x, current_state=True):
+        node_feature, edge_index = x.node_feature, x.edge_index
+        x = self.gcn1(node_feature, edge_index)
+        x = self.gcn2(x, edge_index)
+
+        x = self.batch_norm(x)
+        rsu_embedding = x[0].unsqueeze(0)
+        x = self.linear(x)
+        x = self.relu(x)
+        action_prob = self.softmax(x)
+
+        return action_prob, rsu_embedding
+
+
 

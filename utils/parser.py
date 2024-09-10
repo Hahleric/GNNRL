@@ -14,7 +14,7 @@ def parse_args():
                         help = "weight decay for adam optimizer")
     parser.add_argument('--model', default = 'dgrec', type = str,
                         help = 'model selection')
-    parser.add_argument('--epoch', default = 30, type = int,
+    parser.add_argument('--epoch', default = 200, type = int,
                         help = 'epoch number')
     parser.add_argument('--patience', default = 2, type = int,
                         help = 'early_stop validation')

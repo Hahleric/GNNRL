@@ -43,13 +43,7 @@ class Environment:
         else:
             self.cached_files = [Cache(file_id) for file_id in random.sample(self.popular_files, self.cache_size)]
 
-        remaining_content = []
-        for file_id in self.popular_files:
-            if file_id not in [file.file_id for file in self.cached_files]:
-                remaining_content.append(file_id)
-        self.remaining_content = remaining_content
         self.init_cached_files = self.cached_files.copy()
-        self.init_remaining_content = self.remaining_content.copy()
         self.init_state = np.zeros((1, self.args.feature_dim))
         self.state = self.init_state.copy()
 
@@ -109,5 +103,4 @@ class Environment:
 
         return (self.init_state,
                 self.init_edge_index,
-                self.init_remaining_content,
                 )
