@@ -3,7 +3,7 @@ import torch
 from torch.distributions import Categorical
 from torch_geometric.data import Data
 
-from model import ActorGCN, CriticGCN
+from model import ActorGCN, CriticGCN, TransActor, GATActor
 from recommender import Recommender
 from recommender import train_model
 from replay_buffer import ReplayBufferGNN
@@ -165,3 +165,67 @@ def mini_batch_train(env, agent, max_episodes, max_steps, batch_size
                 request_delay_list.append(request_delay)
 
     return episode_rewards, cache_efficiency_list, request_delay_list
+
+
+class TransAgent:
+    def __init__(self, args, learning_rate=1e-6, gamma=0.99, buffer_size=1000):
+        self.cache_size = args.cache_size
+        self.args = args
+        self.feature_dim = args.feature_dim
+        self.learning_rate = learning_rate
+        self.gamma = gamma
+        self.batch_size = self.args.rl_batch_size
+        self.replay_buffer = ReplayBufferGNN(buffer_size)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.actor = TransActor(self.feature_dim).to(self.device)
+        self.critic = CriticGCN(self.feature_dim).to(self.device)
+
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=learning_rate, weight_decay=1e-7)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=learning_rate, weight_decay=1e-7)
+
+        self.MSE_loss = nn.MSELoss()
+
+    def get_action(self, data, eps=0.1):
+        action_prob, rsu_embedding = self.actor(data, True)
+        m = Categorical(action_prob[0])
+        action = m.sample().item()
+        if np.random.rand() < eps:
+            action = random.randint(0, 1)
+            return action, rsu_embedding
+        return action, rsu_embedding
+
+    def optimize_model(self, batch_size):
+        if self.replay_buffer.length() < batch_size:
+            return
+
+        data_loader = self.replay_buffer.sample(batch_size)
+        if data_loader:
+            for batch_idx, data in enumerate(data_loader):
+                node_feature = data[batch_idx].node_feature.to(self.device)
+                reward = data[batch_idx].reward.to(self.device)
+                next_state = data[batch_idx].next_state.to(self.device)
+                terminal = data[batch_idx].terminal.to(self.device)
+
+                x_current = Data(node_feature=node_feature, edge_index=data[batch_idx].edge_index)
+                current_action_probs, _ = self.actor(x_current)
+                current_value = self.critic(node_feature[0]).squeeze()
+
+                next_value = self.critic(next_state).squeeze()
+
+                target_value = reward + self.gamma * next_value * (1 - terminal)
+                advantage = target_value - current_value
+                advantage = advantage.unsqueeze(-1)
+
+                critic_loss = (advantage.pow(2)).mean()
+
+                action_log_probs = torch.log(current_action_probs)
+                actor_loss = -(action_log_probs * advantage.detach()).mean()
+
+                self.actor_optimizer.zero_grad()
+                actor_loss.backward()
+                self.actor_optimizer.step()
+
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_optimizer.step()
