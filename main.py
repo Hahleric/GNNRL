@@ -37,66 +37,67 @@ if __name__ == '__main__':
 
     model = choose_model(args, dataloader)
     model = model.to(device)
-    opt = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = args.weight_decay)
-    early_stop(99999.99, model)
-    item = []
-    graph = None
-    score_pos = None
-    for epoch in range(args.epoch):
-        model.train()
-
-        loss_train = torch.zeros(1).to(device)
-
-        graph_pos = dataloader.train_graph
-        for i in range(args.neg_number):
-            graph_neg = construct_negative_graph(graph_pos, ('user', 'rate', 'item'))
-
-            graph, score_pos, score_neg = model(graph_pos, graph_neg)
-            if not args.category_balance:
-                loss_train += -(score_pos - score_neg).sigmoid().log().mean()
-            else:
-                loss = -(score_pos - score_neg).sigmoid().log()
-                items = graph_pos.edges(etype = 'rate')[1]
-                weight = sample_weight[items]
-                loss_train += (weight * loss.squeeze(1)).mean()
-
-        # 每个正样本，采样args.neg_number个负样本
-
-        loss_train = loss_train / args.neg_number
-        # 平均一下
-        logging.info('train loss = {}'.format(loss_train.item()))
-        opt.zero_grad()
-        loss_train.backward()
-        opt.step()
-
-        model.eval()
-        graph_val_pos = dataloader.val_graph
-        graph_val_neg = construct_negative_graph(graph_val_pos, ('user', 'rate', 'item'))
-
-        graph, score_pos, score_neg = model(graph_val_pos, graph_val_neg)
-        if not args.category_balance:
-            loss_val = -(score_pos - score_neg).sigmoid().log().mean()
-        else:
-            loss = -(score_pos - score_neg).sigmoid().log()
-            items = graph_val_pos.edges(etype = 'rate')[1]
-            weight = sample_weight[items]
-            loss_val = (weight * loss.squeeze(1)).mean()
-
-
-        early_stop(loss_val, model)
-
-        if torch.isnan(loss_val) == True:
-            break
-
-        if early_stop.early_stop:
-            break
+    # opt = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = args.weight_decay)
+    # early_stop(99999.99, model)
+    # item = []
+    # graph = None
+    # score_pos = None
+    # for epoch in range(args.epoch):
+    #     model.train()
+    #
+    #     loss_train = torch.zeros(1).to(device)
+    #
+    #     graph_pos = dataloader.train_graph
+    #     for i in range(args.neg_number):
+    #         graph_neg = construct_negative_graph(graph_pos, ('user', 'rate', 'item'))
+    #
+    #         graph, score_pos, score_neg = model(graph_pos, graph_neg)
+    #         if not args.category_balance:
+    #             loss_train += -(score_pos - score_neg).sigmoid().log().mean()
+    #         else:
+    #             loss = -(score_pos - score_neg).sigmoid().log()
+    #             items = graph_pos.edges(etype = 'rate')[1]
+    #             weight = sample_weight[items]
+    #             loss_train += (weight * loss.squeeze(1)).mean()
+    #
+    #     # 每个正样本，采样args.neg_number个负样本
+    #
+    #     loss_train = loss_train / args.neg_number
+    #     # 平均一下
+    #     logging.info('train loss = {}'.format(loss_train.item()))
+    #     opt.zero_grad()
+    #     loss_train.backward()
+    #     opt.step()
+    #
+    #     model.eval()
+    #     graph_val_pos = dataloader.val_graph
+    #     graph_val_neg = construct_negative_graph(graph_val_pos, ('user', 'rate', 'item'))
+    #
+    #     graph, score_pos, score_neg = model(graph_val_pos, graph_val_neg)
+    #     if not args.category_balance:
+    #         loss_val = -(score_pos - score_neg).sigmoid().log().mean()
+    #     else:
+    #         loss = -(score_pos - score_neg).sigmoid().log()
+    #         items = graph_val_pos.edges(etype = 'rate')[1]
+    #         weight = sample_weight[items]
+    #         loss_val = (weight * loss.squeeze(1)).mean()
+    #
+    #
+    #     early_stop(loss_val, model)
+    #
+    #     if torch.isnan(loss_val) == True:
+    #         break
+    #
+    #     if early_stop.early_stop:
+    #         break
 
     logging.info('loading best model for RL')
-    model.load_state_dict(torch.load(early_stop.save_path))
+    model.load_state_dict(torch.load('best_models/TaoBao_model_dgrec_lr_0.05_embed_size_32_batch_size_2048_weight_decay_8e-08_layers_1_neg_number_4_seed_2024_k_20_sigma_1.0_gamma_2.0_beta_class_0.9.pt'))
     test_items = dataloader.test_items
     environment = environment.Environment(args, cache_size=args.cache_size, test_items=test_items)
     h = model.get_embedding()
     agent = GCNAgent.GCNAgent(args)
     exp = experiment.Experiment(args, model, dataloader, environment, agent)
-    episode_rewards, cache_efficiency, request_delay = exp.start_without_recommender()
+    episode_rewards, cache_efficiency, request_delay = exp.start_regular_with_recommender()
+
 

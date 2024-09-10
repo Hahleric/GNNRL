@@ -196,7 +196,7 @@ class Experiment(object):
             episode_cache_efficiencies = []
             print("____________", episode, " Started " + "__________")
             test_items = random.sample(self.test_items, 10000)
-            while steps < 50:
+            while steps < 100:
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
@@ -271,6 +271,7 @@ class Experiment(object):
             plt.plot(range(len(self.lru_efficiency)), self.lru_efficiency, marker='o', label='LRU')
             plt.plot(range(len(cache_efficiency_list[-1])), cache_efficiency_list[-1], marker='o', label='GNNRL')
             plt.plot()
+            plt.savefig('cache efficiency with recommender')
             plt.xlabel('Step')
             plt.ylabel('Cache Efficiency')
             plt.title('Cache Efficiency per Step in the Last Episode')
@@ -302,7 +303,7 @@ class Experiment(object):
             episode_cache_efficiencies = []
             print("____________", episode, " Started " + "__________")
             test_items = random.sample(self.test_items, 10000)
-            while steps < 1000:
+            while steps < 150:
                 regular_items = random.sample(test_items, self.args.vehicle_num * 5)
                 for i in regular_items:
                     self.fifo_cache.put(i)
@@ -378,6 +379,9 @@ class Experiment(object):
         plt.plot(range(len(self.fifo_efficiency)), self.fifo_efficiency, marker='o', label='FIFO')
         plt.plot(range(len(self.lru_efficiency)), self.lru_efficiency, marker='o', label='LRU')
         plt.plot(range(len(cache_efficiency_list[-1])), cache_efficiency_list[-1], marker='o', label='GNNRL')
+
+        # save above 3 figs
+        plt.savefig('cache efficiency without recommender')
         plt.xlabel('Step')
         plt.ylabel('Cache Efficiency')
         plt.title('Cache Efficiency per Step in the Last Episode')
