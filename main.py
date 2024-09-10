@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import logging
 
-import GCNAgent
+from GCNAgent import GCNAgent, TransAgent
 import experiment
 from utils.parser import parse_args
 from utils.dataloader import Dataloader
@@ -96,7 +96,8 @@ if __name__ == '__main__':
     test_items = dataloader.test_items
     environment = environment.Environment(args, cache_size=args.cache_size, test_items=test_items)
     h = model.get_embedding()
-    agent = GCNAgent.GCNAgent(args)
-    exp = experiment.Experiment(args, model, dataloader, environment, agent)
+    agent = GCNAgent(args)
+    agent_trans = TransAgent(args)
+    exp = experiment.Experiment(args, model, dataloader, environment, agent_trans)
     episode_rewards, cache_efficiency, request_delay = exp.start_without_recommender()
 
