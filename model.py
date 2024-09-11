@@ -71,9 +71,9 @@ class GATActor(nn.Module):
         super(GATActor, self).__init__()
         self.heads = 4
         # 使用PyTorch Geometric的GCN层
-        self.gcn1 = GATConv(node_feature_dim, hidden_dim, heads=self.heads)
+        self.gcn1 = GATConv(node_feature_dim, hidden_dim, heads=self.heads, concat=False)
         self.batch_norm = nn.BatchNorm1d(hidden_dim)
-        self.linear = nn.Linear(hidden_dim * self.heads, output_dim)
+        self.linear = nn.Linear(hidden_dim, output_dim)
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=1)
 
@@ -98,11 +98,11 @@ class TransActor(nn.Module):
         super(TransActor, self).__init__()
         self.heads = 4
         # 使用PyTorch Geometric的GCN层
-        self.gcn1 = TransformerConv(node_feature_dim, hidden_dim, heads=self.heads)
-        self.gcn2 = TransformerConv(hidden_dim, hidden_dim, heads=self.heads)
+        self.gcn1 = TransformerConv(node_feature_dim, hidden_dim, heads=self.heads, concat=False)
+        self.gcn2 = TransformerConv(hidden_dim, hidden_dim, heads=self.heads, concat=False)
         self.batch_norm = nn.BatchNorm1d(hidden_dim)
 
-        self.linear = nn.Linear(hidden_dim * self.heads, output_dim)
+        self.linear = nn.Linear(hidden_dim, output_dim)
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=1)
 

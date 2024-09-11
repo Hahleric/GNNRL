@@ -196,7 +196,7 @@ class Experiment(object):
             episode_cache_efficiencies = []
             print("____________", episode, " Started " + "__________")
             test_items = random.sample(self.test_items, 10000)
-            while steps < 100:
+            while steps < 500:
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
@@ -266,22 +266,10 @@ class Experiment(object):
             cache_efficiency_list.append(episode_cache_efficiencies)
             episode += 1
 
-            plt.figure(figsize=(10, 5))
-            plt.plot(range(len(self.fifo_efficiency)), self.fifo_efficiency, marker='o', label='FIFO')
-            plt.plot(range(len(self.lru_efficiency)), self.lru_efficiency, marker='o', label='LRU')
-            plt.plot(range(len(cache_efficiency_list[-1])), cache_efficiency_list[-1], marker='o', label='GNNRL')
-            plt.plot()
-            plt.savefig('cache efficiency with recommender')
-            plt.xlabel('Step')
-            plt.ylabel('Cache Efficiency')
-            plt.title('Cache Efficiency per Step in the Last Episode')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
 
         self.fifo_efficiency = []
         self.lru_efficiency = []
-        return episode_rewards, cache_efficiency_list, request_delay_list
+        return episode_rewards, cache_efficiency_list, request_delay_list, self.fifo_efficiency, self.lru_efficiency
     def start_without_recommender(self):
         h = self.model.get_embedding()
         steps = 0
@@ -375,20 +363,7 @@ class Experiment(object):
             episode += 1
 
         # 绘制每个 episode 最后 100 个 step 的平均 cache efficiency
-        plt.figure(figsize=(10, 5))
-        plt.plot(range(len(self.fifo_efficiency)), self.fifo_efficiency, marker='o', label='FIFO')
-        plt.plot(range(len(self.lru_efficiency)), self.lru_efficiency, marker='o', label='LRU')
-        plt.plot(range(len(cache_efficiency_list[-1])), cache_efficiency_list[-1], marker='o', label='GNNRL')
-
-        # save above 3 figs
-        plt.savefig('cache efficiency without recommender')
-        plt.xlabel('Step')
-        plt.ylabel('Cache Efficiency')
-        plt.title('Cache Efficiency per Step in the Last Episode')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
 
 
-        return episode_rewards, cache_efficiency_list, request_delay_list
+        return episode_rewards, cache_efficiency_list, request_delay_list, self.fifo_efficiency, self.lru_efficiency
 

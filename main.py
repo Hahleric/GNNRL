@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import logging
 
-from GCNAgent import GCNAgent, TransAgent
+from GCNAgent import GCNAgent, TransAgent, GATAgent
 import experiment
 from utils.parser import parse_args
 from utils.dataloader import Dataloader
@@ -18,6 +18,7 @@ from utils.utils import config, construct_negative_graph, choose_model, load_mf_
 from utils.tester import Tester
 from models.sampler import NegativeSampler
 import environment
+import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     args = parse_args()
@@ -98,6 +99,28 @@ if __name__ == '__main__':
     h = model.get_embedding()
     agent = GCNAgent(args)
     agent_trans = TransAgent(args)
-    exp = experiment.Experiment(args, model, dataloader, environment, agent_trans)
-    episode_rewards, cache_efficiency, request_delay = exp.start_without_recommender()
+    agent_gat = GATAgent(args)
+    agents = [agent, agent_gat, agent_trans]
+    cache_efficiencies = np.array([])
+
+    for agent in agents:
+        exp = experiment.Experiment(args, model, dataloader, environment, agent)
+        episode_rewards, cache_efficiency, request_delay, fifo_eff, lru_eff = exp.start_regular_with_recommender()
+        cache_efficiencies = np.append(cache_efficiencies, cache_efficiency)
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(len(cache_efficiencies[0])), cache_efficiencies[0], label='GCN')
+    plt.plot(range(len(cache_efficiencies[1])), cache_efficiencies[1], label='TRANS')
+    plt.plot(range(len(cache_efficiencies[2])), cache_efficiencies[2], label='GAT')
+    plt.plot(range(len(fifo_eff)), fifo_eff, label='FIFO')
+    plt.plot(range(len(lru_eff)), lru_eff, label='LRU')
+    plt.savefig('cache efficiency with recommender')
+    plt.xlabel('Step')
+    plt.ylabel('Cache Efficiency')
+    plt.title('Cache Efficiency per Step in the Last Episode')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+
 
