@@ -9,8 +9,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import logging
-
-from GCNAgent import GCNAgent, TransAgent, GATAgent
+import gc  # Python垃圾回收模块
+from GCNAgent import GCNAgent, TransAgent, GATAgent, MLPAgent
 import experiment
 from utils.parser import parse_args
 from utils.dataloader import Dataloader
@@ -23,7 +23,6 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     args = parse_args()
     early_stop = config(args)
-
     if args.gpu >= 0 and torch.cuda.is_available():
         device = 'cuda:{}'.format(args.gpu)
     else:
@@ -97,27 +96,42 @@ if __name__ == '__main__':
     test_items = dataloader.test_items
     environment = environment.Environment(args, cache_size=args.cache_size, test_items=test_items)
     h = model.get_embedding()
-    agent = GCNAgent(args)
-    agent_trans = TransAgent(args)
-    agent_gat = GATAgent(args)
-    agents = [agent, agent_gat, agent_trans]
-    cache_efficiencies = np.array([])
+    # agent = GCNAgent(args)
+    # agent_trans = TransAgent(args)
+    # agent_gat = GATAgent(args)
+    # MLPAgent = MLPAgent(args)
+    # agents = [agent, agent_gat, agent_trans, MLPAgent]
+    cache_efficiencies = []
 
-    for agent in agents:
+    for i in range(4):
+        if i == 0:
+            agent = GCNAgent(args)
+        elif i == 1:
+            agent = TransAgent(args)
+        elif i == 2:
+            agent = GATAgent(args)
+        else:
+            agent = MLPAgent(args)
         exp = experiment.Experiment(args, model, dataloader, environment, agent)
+        print('start regular with recommender')
         episode_rewards, cache_efficiency, request_delay, fifo_eff, lru_eff = exp.start_regular_with_recommender()
-        cache_efficiencies = np.append(cache_efficiencies, cache_efficiency)
+        cache_efficiencies.append(cache_efficiency)
+
+        del agent
+        del exp
+        torch.cuda.empty_cache()  # 释放CUDA内存
+        gc.collect()  # 强制执行垃圾回收
     plt.figure(figsize=(10, 5))
+
     plt.plot(range(len(cache_efficiencies[0])), cache_efficiencies[0], label='GCN')
-    plt.plot(range(len(cache_efficiencies[1])), cache_efficiencies[1], label='TRANS')
-    plt.plot(range(len(cache_efficiencies[2])), cache_efficiencies[2], label='GAT')
     plt.plot(range(len(fifo_eff)), fifo_eff, label='FIFO')
     plt.plot(range(len(lru_eff)), lru_eff, label='LRU')
-    plt.savefig('cache efficiency with recommender')
+    plt.legend()
+    plt.savefig('cache_efficiency.png')
     plt.xlabel('Step')
     plt.ylabel('Cache Efficiency')
     plt.title('Cache Efficiency per Step in the Last Episode')
-    plt.legend()
+
     plt.grid(True)
     plt.show()
 

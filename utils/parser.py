@@ -18,13 +18,13 @@ def parse_args():
                         help = 'epoch number')
     parser.add_argument('--patience', default = 2, type = int,
                         help = 'early_stop validation')
-    parser.add_argument('--batch_size', default = 2048, type = int,
+    parser.add_argument('--batch_size', default = 20, type = int,
                         help = 'batch size')
     parser.add_argument('--layers', default = 1, type = int,
                         help = 'layer number')
     parser.add_argument('--gpu', default = 0, type = int,
                         help = '-1 for cpu, 0 for gpu:0')
-    parser.add_argument('--k_list', default = 500, type = int,
+    parser.add_argument('--k_list', default = 1500, type = int,
                         help = 'topk evaluation')
     parser.add_argument('--k', default = 20, type = int,
                         help = 'neighbor number in each GNN aggregation')
@@ -40,11 +40,13 @@ def parse_args():
                         help = 'whether make loss category balance')
     parser.add_argument('--beta_class', default = 0.9, type = float,
                         help = 'class re-balanced loss beta')
-    parser.add_argument('--cache_size', default = 200, type = int,
+    # parser.add_argument('--cache_size', default = 200, type = int,
+    #                     help = 'cache size for cache environment')
+    parser.add_argument('--cache_size', default = 3000, type = int,
                         help = 'cache size for cache environment')
     parser.add_argument('--vehicle_num', default = 20, type = int,
                         help = 'vehicle number')
-    parser.add_argument('--feature_dim', default = 500, type = int,
+    parser.add_argument('--feature_dim', default = 5000, type = int,
                         help = 'feature dimension')
     parser.add_argument('--rl_batch_size', default = 40, type = int,
                         help = 'rl batch size')

@@ -21,8 +21,6 @@ class Experiment(object):
         self.history_csr = dataloader.train_csr
         self.fifo_cache = FIFOCache(args.cache_size)
         self.lru_cache = LRUCache(args.cache_size)
-        self.fifo_efficiency = []
-        self.lru_efficiency = []
         self.model = model
         self.args = args
         self.replace_num = 10
@@ -92,7 +90,7 @@ class Experiment(object):
             episode_cache_efficiencies = []
             print("____________", episode, " Started " + "__________")
             test_items = random.sample(self.test_items, 10000)
-            while steps < 500:
+            while steps < 50:
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
@@ -130,6 +128,7 @@ class Experiment(object):
                         request_dataset.add(k)
                 request_dataset = list(request_dataset)
 
+
                 for i in covered_vehicles:
                     i.time_stamp += 1
                 state = torch.tensor(state, dtype=torch.float32).to(self.device)
@@ -145,6 +144,7 @@ class Experiment(object):
                     self.v2i_rate,
                     steps,
                     items_ready_to_cache)
+
                 self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores)
                 episode_reward.append(reward)
                 if steps > 0:
@@ -177,68 +177,97 @@ class Experiment(object):
 
     def start_regular_with_recommender(self):
         h = self.model.get_embedding()
-        steps = 0
-        episode = 0
-        # current_users = random.sample(list(self.test_dic.keys()), self.args.batch_size)
         episode_rewards = []
-        cache_efficiency_list = []
+        avg_cache_efficiencies = []  # List to store average cache efficiency for each episode
+        avg_fifo_efficiencies = []  # List to store average FIFO efficiency for each episode
+        avg_lru_efficiencies = []  # List to store average LRU efficiency for each episode
         request_delay_list = []
         vehicle_request_num = []
         covered_vehicles = []
-        for i in range(self.args.rl_batch_size):
-            vehicle = Vehicle(random.randint(0, 10), random.sample(list(self.test_dic.keys()), 1))
+        print(self.agent.agent_name)
+
+        # Initialize vehicles
+        for _ in range(self.args.rl_batch_size):
+            vehicle = Vehicle(random.randint(0, len(self.test_items)//self.args.feature_dim), random.sample(list(self.test_dic.keys()), 1))
             covered_vehicles.append(vehicle)
-        while episode < 1:
+
+        episode = 0
+        # Loop over episodes
+        while episode < 20:
             state, _ = self.environment.reset()
             episode_reward = []
-            terminal = 0
             steps = 0
-            episode_cache_efficiencies = []
+            episode_cache_efficiencies = []  # List to store cache efficiencies for this episode
+            episode_fifo_efficiencies = []  # List to store FIFO efficiencies for this episode
+            episode_lru_efficiencies = []  # List to store LRU efficiencies for this episode
             print("____________", episode, " Started " + "__________")
-            test_items = random.sample(self.test_items, 10000)
+            test_items = self.test_items
+            # Steps within an episode
             while steps < 500:
+                # Update vehicles
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
-                        new_veh = Vehicle(random.randint(0, 5), random.sample(list(self.test_dic.keys()), 1))
+                        new_veh = Vehicle(random.randint(0, len(self.test_items) // self.args.feature_dim), random.sample(list(self.test_dic.keys()), 1))
                         covered_vehicles.append(new_veh)
 
                 items_ready_to_cache = []
                 scores = []
                 request_dataset = set()
                 for i in covered_vehicles:
-                    vehicle_items = test_items[self.args.feature_dim * i.time_stamp: (i.time_stamp + 1) * self.args.feature_dim]
+                    vehicle_items = test_items[
+                                    self.args.feature_dim * i.time_stamp: (i.time_stamp + 1) * self.args.feature_dim
+                                    ]
                     score = self.model.get_score(h, i.user_number)
-                    mask = torch.tensor(self.history_csr[i.user_number].todense(), device=self.device).bool()
-                    score[mask] = -float('inf')
+
+                    # Convert interacted_items to a tensor on the correct device
+                    interacted_items = torch.tensor(
+                        self.history_csr[i.user_number].indices,
+                        dtype=torch.long,
+                        device=score.device
+                    )
+                    # Validate indices
+                    valid_indices = (interacted_items >= 0) & (interacted_items < score.size(0))
+                    interacted_items = interacted_items[valid_indices]
+                    # Apply the mask
+                    score[interacted_items] = -float('inf')
 
                     _, recommended_items = torch.topk(score, k=self.args.k_list)
-                    sorted_items = recommended_items.cpu()
+                    sorted_items = recommended_items.cpu().numpy().flatten()
+
                     score = self.model.get_score_by_user_item(h, i.user_number, vehicle_items)
                     score = score.squeeze(0)
                     scores.append(score.tolist())
+
                     itr = 0
                     j = 0
-                    while itr < 5:
-                        if j == len(sorted_items[0]):
-                            items_ready_to_cache.append(sorted_items[0][random.randint(0, len(sorted_items) - 1)])
-                            itr += 1
-                        elif sorted_items[0][j] in items_ready_to_cache:
+                    items_ready_to_cache_set = set(items_ready_to_cache)
+                    while itr < self.args.k_list // self.args.vehicle_num:
+                        if j == len(sorted_items):
+                            rand_item = sorted_items[random.randint(0, len(sorted_items) - 1)]
+                            if rand_item not in items_ready_to_cache_set:
+                                items_ready_to_cache.append(rand_item)
+                                items_ready_to_cache_set.add(rand_item)
+                                itr += 1
+                        elif sorted_items[j] in items_ready_to_cache_set:
                             j += 1
                         else:
-                            items_ready_to_cache.append(sorted_items[0][j])
+                            items_ready_to_cache.append(sorted_items[j])
+                            items_ready_to_cache_set.add(sorted_items[j])
                             j += 1
                             itr += 1
-
-                    for k in vehicle_items:
-                        request_dataset.add(k)
+                    request_dataset.update(vehicle_items)
+                # print("len of request_dataset: ", len(request_dataset))
+                # print("len of items_ready_to_cache: ", len(items_ready_to_cache))
                 for item in items_ready_to_cache:
                     self.fifo_cache.put(item)
                     self.lru_cache.put(item)
                 request_dataset = list(request_dataset)
 
+                # Update vehicle timestamps
                 for i in covered_vehicles:
                     i.time_stamp += 1
+
                 state = torch.tensor(state, dtype=torch.float32).to(self.device)
                 scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
                 node_feature = torch.cat([state, scores], dim=0).to(self.device)
@@ -252,24 +281,51 @@ class Experiment(object):
                     self.v2i_rate,
                     steps,
                     items_ready_to_cache)
+                terminal = False  # Set terminal condition if applicable
                 self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores)
                 episode_reward.append(reward)
-                if steps >= 0:
-                    episode_cache_efficiencies.append(cache_efficiency)
-                    fifo_hits = sum([1 for item in request_dataset if self.fifo_cache.get(item) is not None])
-                    lru_hits = sum([1 for item in request_dataset if self.lru_cache.get(item) is not None])
-                    self.fifo_efficiency.append(fifo_hits / len(request_dataset))
-                    self.lru_efficiency.append(lru_hits / len(request_dataset))
+
+                # Collect cache efficiencies for each step
+                episode_cache_efficiencies.append(cache_efficiency)
+
+                # Calculate FIFO and LRU efficiencies for this step
+                fifo_hits = sum(1 for item in request_dataset if self.fifo_cache.get(item) is not None)
+                lru_hits = sum(1 for item in request_dataset if self.lru_cache.get(item) is not None)
+                fifo_efficiency = fifo_hits / len(request_dataset) if request_dataset else 0
+                lru_efficiency = lru_hits / len(request_dataset) if request_dataset else 0
+
+                # Append to episode lists
+                episode_fifo_efficiencies.append(fifo_efficiency)
+                episode_lru_efficiencies.append(lru_efficiency)
+
                 self.agent.optimize_model(self.args.rl_batch_size)
                 steps += 1
+
+
+            # After the steps loop, compute average cache efficiencies of last 50 steps
+            if len(episode_cache_efficiencies) >= 50:
+                last_50_cache_efficiencies = episode_cache_efficiencies[-50:]
+                last_50_fifo_efficiencies = episode_fifo_efficiencies[-50:]
+                last_50_lru_efficiencies = episode_lru_efficiencies[-50:]
+            else:
+                last_50_cache_efficiencies = episode_cache_efficiencies
+                last_50_fifo_efficiencies = episode_fifo_efficiencies
+                last_50_lru_efficiencies = episode_lru_efficiencies
+
+            avg_cache_efficiency = sum(last_50_cache_efficiencies) / len(last_50_cache_efficiencies)
+            avg_fifo_efficiency = sum(last_50_fifo_efficiencies) / len(last_50_fifo_efficiencies)
+            avg_lru_efficiency = sum(last_50_lru_efficiencies) / len(last_50_lru_efficiencies)
+
+            avg_cache_efficiencies.append(avg_cache_efficiency)
+            avg_fifo_efficiencies.append(avg_fifo_efficiency)
+            avg_lru_efficiencies.append(avg_lru_efficiency)
+
             episode_rewards.append(episode_reward)
-            cache_efficiency_list.append(episode_cache_efficiencies)
             episode += 1
 
+        # Return the lists of average efficiencies along with other metrics
+        return episode_rewards, avg_cache_efficiencies, request_delay_list, avg_fifo_efficiencies, avg_lru_efficiencies
 
-        self.fifo_efficiency = []
-        self.lru_efficiency = []
-        return episode_rewards, cache_efficiency_list, request_delay_list, self.fifo_efficiency, self.lru_efficiency
     def start_without_recommender(self):
         h = self.model.get_embedding()
         steps = 0

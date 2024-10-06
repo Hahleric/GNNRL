@@ -1,8 +1,7 @@
-Tue, 10 Sep 2024 17:53:32  INFO loadding data
-Tue, 10 Sep 2024 17:53:32  INFO reading category information
-Tue, 10 Sep 2024 17:53:39  INFO reading train data
-Tue, 10 Sep 2024 17:53:44  INFO reading valid data
-Tue, 10 Sep 2024 17:53:45  INFO reading test data
-Tue, 10 Sep 2024 17:53:45  INFO get weight for each sample
-Tue, 10 Sep 2024 17:53:45  INFO loading best model for RL
-Tue, 10 Sep 2024 19:39:59  DEBUG Loaded backend agg version v2.2.
+Sat, 14 Sep 2024 04:38:35  INFO loadding data
+Sat, 14 Sep 2024 04:38:35  INFO reading category information
+Sat, 14 Sep 2024 04:38:43  INFO reading train data
+Sat, 14 Sep 2024 04:38:47  INFO reading valid data
+Sat, 14 Sep 2024 04:38:48  INFO reading test data
+Sat, 14 Sep 2024 04:38:49  INFO get weight for each sample
+Sat, 14 Sep 2024 04:38:49  INFO loading best model for RL
