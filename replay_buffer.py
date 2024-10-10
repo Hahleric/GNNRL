@@ -19,16 +19,17 @@ class ReplayBuffer:
 
     # add: add a transition (s, a, r, s2, d)
     # add Data object directly
-    def add(self, s, a, r, s2, d):
+    def add(self, s, a, r, s2, d, item_ready_to_cache):
         # self.buf.append((s, a, r, s2, d))
-        state, action, reward, next_state, terminal = s, a, r, s2, d
+        state, action, reward, next_state, terminal, items_ready_to_cache = s, a, r, s2, d, item_ready_to_cache
 
         state = torch.tensor(state, dtype=torch.float)
         action = torch.tensor(action, dtype=torch.long)
         reward = torch.tensor(reward, dtype=torch.float)
         next_state = torch.tensor(next_state, dtype=torch.float)
         terminal = torch.tensor(terminal, dtype=torch.long)
-        data = Data(state=state, action=action, reward=reward, next_state=next_state, terminal=terminal)
+        items_ready_to_cache = torch.tensor(items_ready_to_cache, dtype=torch.long)
+        data = Data(state=state, action=action, reward=reward, next_state=next_state, terminal=terminal, items_ready_to_cache=items_ready_to_cache)
         self.buf.append(data)
 
     # sample: return minibatch of size n
@@ -53,12 +54,11 @@ class ReplayBufferGNN(ReplayBuffer):
 
     # add: add a transition (s, a, r, s2, d)
     # add Data object directly
-    def add(self, n_f, a, r, s2, terminal, edge_index, scores):
-        # self.buf.append((s, a, r, s2, d))
-        node_feature,  action, reward, terminal, next_state = n_f, a, r, s2, terminal
+    def add(self, n_f, a, r, s2, terminal, edge_index, scores, items_ready_to_cache):
+        node_feature, action, reward, terminal, next_state = n_f, a, r, terminal, s2
 
         node_feature = torch.tensor(node_feature, dtype=torch.float).to(device)
-        action = torch.tensor(action, dtype=torch.long).to(device)
+        action = torch.tensor(action, dtype=torch.long).to(device)  # 将动作转换为张量
         reward = torch.tensor(reward, dtype=torch.float).to(device)
         next_state = torch.tensor(next_state, dtype=torch.float).to(device)
         terminal = torch.tensor(terminal, dtype=torch.long).to(device)
@@ -66,8 +66,9 @@ class ReplayBufferGNN(ReplayBuffer):
         edge_index = torch.tensor(edge_index, dtype=torch.long).to(device)
         scores = torch.tensor(scores, dtype=torch.float).to(device)
         num_nodes = node_feature.shape[0]
-        data = Data(node_feature=node_feature,  action=action, reward=reward, next_state=next_state, terminal=terminal,
-                    edge_index=edge_index, scores=scores, num_nodes=num_nodes)
+        items_ready_to_cache = torch.tensor(items_ready_to_cache, dtype=torch.long).to(device)
+        data = Data(node_feature=node_feature, action=action, reward=reward, next_state=next_state, terminal=terminal,
+                    edge_index=edge_index, scores=scores, num_nodes=num_nodes, items_ready_to_cache=items_ready_to_cache)
         self.buf.append(data)
 
     def length(self):

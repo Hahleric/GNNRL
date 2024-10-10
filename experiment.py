@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from utils.Cache import FIFOCache, LRUCache
 from utils.Vehicle import Vehicle
+from environment import Cache
 
 from cv2x import Environ
 
@@ -29,11 +30,12 @@ class Experiment(object):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         V2I_min = 100  # minimum required data rate for V2I Communication
         bandwidth = int(540000)
+        self.cached_items = [Cache(i) for i in range(args.cache_size)]
         bandwidth_mbs = int(1000000)
         COVERED_VEH = 20
         REQUESTED_MOVIES = 50
         BATCH_SIZE = 32
-        n_veh = self.args.rl_batch_size
+        n_veh = self.args.vehicle_num
         env_v = Environ(n_veh, V2I_min, bandwidth, bandwidth_mbs)
         vehicle_dis = np.random.normal(100, 50, n_veh)
         self.v2i_rate, self.v2i_rate_mbs = env_v.Compute_Performance_Static(vehicle_dis)
@@ -79,7 +81,7 @@ class Experiment(object):
         request_delay_list = []
         vehicle_request_num = []
         covered_vehicles = []
-        for i in range(self.args.rl_batch_size):
+        for i in range(self.args.vehicle_num):
             vehicle = Vehicle(random.randint(0, 10), random.sample(list(self.test_dic.keys()), 1))
             covered_vehicles.append(vehicle)
         while episode < 1:
@@ -134,9 +136,9 @@ class Experiment(object):
                 state = torch.tensor(state, dtype=torch.float32).to(self.device)
                 scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
                 node_feature = torch.cat([state, scores], dim=0).to(self.device)
-                edge_index = self.create_star_graph_edge_index(self.args.rl_batch_size).to(self.device)
+                edge_index = self.create_star_graph_edge_index(self.args.vehicle_num).to(self.device)
                 data = Data(node_feature=node_feature, edge_index=edge_index)
-                action, rsu_embedding = self.agent.get_action(data)
+                action, rsu_embedding = self.agent.get_action(data, items_ready_to_cache)
                 next_state, reward, cache_efficiency, request_delay = self.environment.step(
                     action,
                     rsu_embedding,
@@ -145,7 +147,7 @@ class Experiment(object):
                     steps,
                     items_ready_to_cache)
 
-                self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores)
+                self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores, items_ready_to_cache)
                 episode_reward.append(reward)
                 if steps > 0:
                     episode_cache_efficiencies.append(cache_efficiency)
@@ -186,14 +188,15 @@ class Experiment(object):
         covered_vehicles = []
         print(self.agent.agent_name)
 
+        speed = 1 # Speed of vehicles
         # Initialize vehicles
-        for _ in range(self.args.rl_batch_size):
-            vehicle = Vehicle(random.randint(0, len(self.test_items)//self.args.feature_dim), random.sample(list(self.test_dic.keys()), 1))
+        for _ in range(self.args.vehicle_num):
+            vehicle = Vehicle(random.randint(0, speed), random.sample(list(self.test_dic.keys()), 1)[0])
             covered_vehicles.append(vehicle)
 
         episode = 0
         # Loop over episodes
-        while episode < 20:
+        while episode < 3:
             state, _ = self.environment.reset()
             episode_reward = []
             steps = 0
@@ -203,22 +206,20 @@ class Experiment(object):
             print("____________", episode, " Started " + "__________")
             test_items = self.test_items
             # Steps within an episode
-            while steps < 500:
+            while steps < 1000:
                 # Update vehicles
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
-                        new_veh = Vehicle(random.randint(0, len(self.test_items) // self.args.feature_dim), random.sample(list(self.test_dic.keys()), 1))
+                        new_veh = Vehicle(random.randint(0, speed), random.sample(list(self.test_dic.keys()), 1)[0])
                         covered_vehicles.append(new_veh)
 
                 items_ready_to_cache = []
                 scores = []
                 request_dataset = set()
                 for i in covered_vehicles:
-                    vehicle_items = test_items[
-                                    self.args.feature_dim * i.time_stamp: (i.time_stamp + 1) * self.args.feature_dim
-                                    ]
-                    score = self.model.get_score(h, i.user_number)
+                    vehicle_items = self.test_dic[i.user_number]
+                    score = self.model.get_score(h, [i.user_number])
 
                     # Convert interacted_items to a tensor on the correct device
                     interacted_items = torch.tensor(
@@ -234,9 +235,16 @@ class Experiment(object):
 
                     _, recommended_items = torch.topk(score, k=self.args.k_list)
                     sorted_items = recommended_items.cpu().numpy().flatten()
+                    flat_score = score.view(-1)
+                    top_200 = flat_score[:self.args.feature_dim]
 
-                    score = self.model.get_score_by_user_item(h, i.user_number, vehicle_items)
+                    # 获取原始张量的行数和列数
+                    original_shape = score.shape
+
+                    score = top_200.view(original_shape[0], -1)
+
                     score = score.squeeze(0)
+                    score = torch.nan_to_num(score, nan=-1e3)
                     scores.append(score.tolist())
 
                     itr = 0
@@ -257,7 +265,7 @@ class Experiment(object):
                             j += 1
                             itr += 1
                     request_dataset.update(vehicle_items)
-                # print("len of request_dataset: ", len(request_dataset))
+                print("len of request_dataset: ", len(request_dataset))
                 # print("len of items_ready_to_cache: ", len(items_ready_to_cache))
                 for item in items_ready_to_cache:
                     self.fifo_cache.put(item)
@@ -271,19 +279,49 @@ class Experiment(object):
                 state = torch.tensor(state, dtype=torch.float32).to(self.device)
                 scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
                 node_feature = torch.cat([state, scores], dim=0).to(self.device)
-                edge_index = self.create_star_graph_edge_index(self.args.rl_batch_size).to(self.device)
+                edge_index = self.create_star_graph_edge_index(self.args.vehicle_num).to(self.device)
                 data = Data(node_feature=node_feature, edge_index=edge_index)
-                action, rsu_embedding = self.agent.get_action(data)
-                next_state, reward, cache_efficiency, request_delay = self.environment.step(
+                action, rsu_embedding, action_indices, action_probabilities = self.agent.get_action(data, items_ready_to_cache, self.cached_items)
+                next_state, reward, cache_efficiency, request_delay, cached_items = self.environment.step(
                     action,
                     rsu_embedding,
                     request_dataset,
                     self.v2i_rate,
                     steps,
                     items_ready_to_cache)
+                self.cached_items = cached_items
                 terminal = False  # Set terminal condition if applicable
-                self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores)
                 episode_reward.append(reward)
+                # update new scores
+                next_scores = []
+                for i in covered_vehicles:
+                    score = self.model.get_score(h, [i.user_number])
+                    interacted_items = torch.tensor(
+                        self.history_csr[i.user_number].indices,
+                        dtype=torch.long,
+                        device=score.device
+                    )
+                    # Validate indices
+                    valid_indices = (interacted_items >= 0) & (interacted_items < score.size(0))
+                    interacted_items = interacted_items[valid_indices]
+                    # Apply the mask
+                    score[interacted_items] = -float('inf')
+
+                    _, recommended_items = torch.topk(score, k=self.args.k_list)
+
+                    flat_score = score.view(-1)
+                    top_200 = flat_score[:self.args.feature_dim]
+
+                    # 获取原始张量的行数和列数
+                    original_shape = score.shape
+
+                    score = top_200.view(original_shape[0], -1)
+                    score = score.squeeze(0)
+                    next_scores.append(score.tolist())
+
+                next_scores = torch.tensor(next_scores, dtype=torch.float32).to(self.device)
+                next_state = next_state.unsqueeze(0)
+                next_node_feature = torch.cat([next_state, next_scores], dim=0).to(self.device)
 
                 # Collect cache efficiencies for each step
                 episode_cache_efficiencies.append(cache_efficiency)
@@ -297,8 +335,19 @@ class Experiment(object):
                 # Append to episode lists
                 episode_fifo_efficiencies.append(fifo_efficiency)
                 episode_lru_efficiencies.append(lru_efficiency)
+                _, next_rsu_embedding = self.agent.actor(next_node_feature, edge_index)
 
-                self.agent.optimize_model(self.args.rl_batch_size)
+                # Optimize the model using the current experience
+                self.agent.optimize_model(
+                    rsu_embedding=rsu_embedding,
+                    action_indices=action_indices,
+                    action_probabilities=action_probabilities,
+                    reward=reward,
+                    next_rsu_embedding=next_rsu_embedding,
+                    terminal=terminal
+                )
+                state = next_state
+                print(steps)
                 steps += 1
 
 
@@ -336,7 +385,7 @@ class Experiment(object):
         request_delay_list = []
         vehicle_request_num = []
         covered_vehicles = []
-        for i in range(self.args.rl_batch_size):
+        for i in range(self.args.vehicle_num):
             vehicle = Vehicle(random.randint(0, 10), random.sample(list(self.test_dic.keys()), 1))
             covered_vehicles.append(vehicle)
         while episode < 1:
@@ -394,7 +443,7 @@ class Experiment(object):
                 state = torch.tensor(state, dtype=torch.float32).to(self.device)
                 scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
                 node_feature = torch.cat([state, scores], dim=0).to(self.device)
-                edge_index = self.create_star_graph_edge_index(self.args.rl_batch_size).to(self.device)
+                edge_index = self.create_star_graph_edge_index(self.args.vehicle_num).to(self.device)
                 data = Data(node_feature=node_feature, edge_index=edge_index)
                 action, rsu_embedding = self.agent.get_action(data)
                 next_state, reward, cache_efficiency, request_delay = self.environment.step(

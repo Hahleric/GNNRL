@@ -21,6 +21,7 @@ import environment
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
+    torch.autograd.set_detect_anomaly(True)
     args = parse_args()
     early_stop = config(args)
     if args.gpu >= 0 and torch.cuda.is_available():
@@ -103,13 +104,13 @@ if __name__ == '__main__':
     # agents = [agent, agent_gat, agent_trans, MLPAgent]
     cache_efficiencies = []
 
-    for i in range(4):
+    for i in range(1):
         if i == 0:
-            agent = GCNAgent(args)
+            agent = GATAgent(args)
         elif i == 1:
             agent = TransAgent(args)
         elif i == 2:
-            agent = GATAgent(args)
+            agent = GCNAgent(args)
         else:
             agent = MLPAgent(args)
         exp = experiment.Experiment(args, model, dataloader, environment, agent)

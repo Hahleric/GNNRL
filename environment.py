@@ -32,7 +32,7 @@ class Environment:
         self.action_space = [0, 1]
         self.reward = 0
         self.cached_files = []
-        self.init_n_veh = self.args.rl_batch_size
+        self.init_n_veh = self.args.vehicle_num
         self.init_n_node = 1 + self.init_n_veh
         self.init_edge_index = get_edge_index(self.init_n_veh)
         self.edge_index = self.init_edge_index.copy()
@@ -48,117 +48,43 @@ class Environment:
         self.state = self.init_state.copy()
 
     def step(self, action, rsu_embedding, request_dataset, v2i_rate, print_step, items_ready_to_cache):
-        """
-        :param action: action taken by the agent (0: do not replace, 1: replace)
-        :param rsu_embedding: RSU embedding
-        :param request_dataset: set of requested file IDs
-        :param v2i_rate: vehicle to infrastructure rate of requesting vehicles
-        :param print_step: current step number
-        :param items_ready_to_cache: list of file IDs recommended from vehicles
-        :return: state_, reward, cache_efficiency, request_delay
-        """
-        # Initialize REPLACE_NUM based on previous cache efficiency
-        if not hasattr(self, 'previous_cache_efficiency'):
-            self.previous_cache_efficiency = 0
-
-        max_replace_num = 500  # Maximum number of items to replace
-        min_replace_num = 50  # Minimum number of items to replace
-
-        # Adjust REPLACE_NUM dynamically based on (1 - previous cache efficiency)
-        REPLACE_NUM = int((1 - self.previous_cache_efficiency) * max_replace_num)
-        REPLACE_NUM = max(min_replace_num, REPLACE_NUM)
-
-        all_vehicle_request_num = len(request_dataset)
-        if print_step == 0:
-            # Initialize the cache with random items
-            self.cached_files = [Cache(file_id) for file_id in random.sample(items_ready_to_cache, self.cache_size)]
-
-        if action == 1:
-            num_to_replace = min(REPLACE_NUM, len(items_ready_to_cache), len(self.cached_files))
-            if num_to_replace > 0:
-                # Count frequency of items in request_dataset that are also in items_ready_to_cache
-                item_counts = {}
-                for item in items_ready_to_cache:
-                    item_counts[item] = 0
-                for item in request_dataset:
-                    if item in item_counts:
-                        item_counts[item] += 1
-                # Sort items_ready_to_cache based on frequency in request_dataset
-                sorted_items = sorted(items_ready_to_cache, key=lambda x: item_counts.get(x, 0), reverse=True)
-                # Select top num_to_replace items
-                replace_items = sorted_items[:num_to_replace]
-                replace_content = [Cache(file_id) for file_id in replace_items]
-                # Replace the least frequently used items in the cache
-                self.cached_files.sort(key=lambda x: x.hits)
-                for i in range(num_to_replace):
-                    self.cached_files[i] = replace_content[i]
-            self.state = rsu_embedding
-
-
-        # num_to_replace = min(REPLACE_NUM, len(items_ready_to_cache), len(self.cached_files))
-        # if num_to_replace > 0:
-        #     # Count frequency of items in request_dataset that are also in items_ready_to_cache
-        #     item_counts = {}
-        #     for item in items_ready_to_cache:
-        #         item_counts[item] = 0
-        #     for item in request_dataset:
-        #         if item in item_counts:
-        #             item_counts[item] += 1
-        #     # Sort items_ready_to_cache based on frequency in request_dataset
-        #     sorted_items = sorted(items_ready_to_cache, key=lambda x: item_counts.get(x, 0), reverse=True)
-        #     # Select top num_to_replace items
-        #     replace_items = sorted_items[:num_to_replace]
-        #     replace_content = [Cache(file_id) for file_id in replace_items]
-        #     # Replace the least frequently used items in the cache
-        #     self.cached_files.sort(key=lambda x: x.hits)
-        #     for i in range(num_to_replace):
-        #         self.cached_files[i] = replace_content[i]
-        # self.state = rsu_embedding
-
-
-        # Calculate cache efficiency
+        # action 是一个包含待更换文件索引的列表
+        if action:
+            # 根据 action 更新缓存
+            replace_items = action  # 待替换的文件列表
+            replace_content = [Cache(file_id) for file_id in replace_items]
+            # 替换缓存中的文件
+            self.cached_files = replace_content
+        # 更新状态为新的 RSU 嵌入表示
+        self.state = rsu_embedding
+        # 计算缓存效率和奖励
         cache_efficiency, cached_items = cache_hit_ratio(request_dataset, self.cached_files)
-        cache_efficiency = cache_efficiency / 100
-        self.cached_files = cached_items
-
-        # Calculate reward and request delay
         reward, request_delay = self.calculate_reward_and_delay(request_dataset, v2i_rate, cache_efficiency)
         if print_step % 50 == 0:
             print("---------------------------------------------")
-            print('All vehicle request num:', all_vehicle_request_num)
-            print('Step {}: RSU cache efficiency: {:.2f}'.format(print_step, cache_efficiency))
-            print('Step {}: Request delay: {:.6f}'.format(print_step, request_delay))
-            print('Step {}: Reward: {:.6f}'.format(print_step, reward))
-            print("---------------------------------------------")
-
-        # Update previous cache efficiency for the next step
-        self.previous_cache_efficiency = cache_efficiency
-
-        return self.state, reward, cache_efficiency, request_delay
-
-        # Calculate reward and request delay
-        reward, request_delay = self.calculate_reward_and_delay(request_dataset, v2i_rate, cache_efficiency)
-
-        if print_step % 50 == 0:
-            print("---------------------------------------------")
-            print('all_vehicle_request_num:', all_vehicle_request_num)
             print('step {}: RSU1 cache_efficiency: {:.2f}'.format(print_step, cache_efficiency))
             print('step {}: request delay: {:.6f}'.format(print_step, request_delay))
             print('step {}: reward: {:.6f}'.format(print_step, reward))
             print("---------------------------------------------")
-
-        return self.state, reward, cache_efficiency, request_delay
+        return self.state, reward, cache_efficiency, request_delay, cached_items
 
     def calculate_reward_and_delay(self, request_dataset, v2i_rate, cache_efficiency):
-        reward = cache_efficiency  # 奖励为缓存效率
         total_requests = len(request_dataset)
         num_vehicles = self.args.vehicle_num
         total_v2i_rate = sum(v2i_rate[:num_vehicles])
         avg_v2i_rate = total_v2i_rate / num_vehicles if num_vehicles > 0 else 1  # Avoid division by zero
+
         delay_cached = (total_requests / avg_v2i_rate) * 800  # Delay for cached content
         delay_uncached = (total_requests / (avg_v2i_rate / 2)) * 800  # Delay for uncached content
         average_delay = cache_efficiency * delay_cached + (1 - cache_efficiency) * delay_uncached
         average_delay_ms = average_delay * 1000  # Convert to milliseconds
+
+        # Introduce weights for cache efficiency and delay
+        alpha = 1.0  # weight for cache efficiency
+        beta = 0.01  # weight for delay (adjust as needed)
+
+        reward = alpha * cache_efficiency - beta * average_delay_ms
+
         return reward, average_delay_ms
 
     def reset(self):

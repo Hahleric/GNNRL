@@ -46,9 +46,8 @@ def cache_hit_ratio(test_dataset, cache_items):
                 if cache_item.file_id == request_item:
                     cache_item.hits += 1
                     break  # Exit loop after finding the item
-
     # Calculate hit ratio as a percentage
-    hit_ratio = (cache_hits / total_requests) * 100
+    hit_ratio = (cache_hits / total_requests)
 
     return hit_ratio, cache_items
 
