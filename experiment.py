@@ -13,6 +13,7 @@ from utils.Vehicle import Vehicle
 from environment import Cache
 
 from cv2x import Environ
+import time
 
 
 class Experiment(object):
@@ -138,7 +139,7 @@ class Experiment(object):
                 node_feature = torch.cat([state, scores], dim=0).to(self.device)
                 edge_index = self.create_star_graph_edge_index(self.args.vehicle_num).to(self.device)
                 data = Data(node_feature=node_feature, edge_index=edge_index)
-                action, rsu_embedding = self.agent.get_action(data, items_ready_to_cache)
+                action, rsu_embedding = self.agent.select_action(data, items_ready_to_cache)
                 next_state, reward, cache_efficiency, request_delay = self.environment.step(
                     action,
                     rsu_embedding,
@@ -147,7 +148,6 @@ class Experiment(object):
                     steps,
                     items_ready_to_cache)
 
-                self.agent.replay_buffer.add(node_feature, action, reward, terminal, next_state, edge_index, scores, items_ready_to_cache)
                 episode_reward.append(reward)
                 if steps > 0:
                     episode_cache_efficiencies.append(cache_efficiency)
@@ -178,6 +178,7 @@ class Experiment(object):
         return episode_rewards, cache_efficiency_list, request_delay_list
 
     def start_regular_with_recommender(self):
+        random.seed(time.time())
         h = self.model.get_embedding()
         episode_rewards = []
         avg_cache_efficiencies = []  # List to store average cache efficiency for each episode
@@ -188,15 +189,15 @@ class Experiment(object):
         covered_vehicles = []
         print(self.agent.agent_name)
 
-        speed = 1 # Speed of vehicles
+        speed = 10 # Speed of vehicles
         # Initialize vehicles
         for _ in range(self.args.vehicle_num):
-            vehicle = Vehicle(random.randint(0, speed), random.sample(list(self.test_dic.keys()), 1)[0])
+            vehicle = Vehicle(random.randint(1, speed), random.sample(list(self.test_dic.keys()), 1)[0])
             covered_vehicles.append(vehicle)
 
         episode = 0
         # Loop over episodes
-        while episode < 3:
+        while episode < 500:
             state, _ = self.environment.reset()
             episode_reward = []
             steps = 0
@@ -206,12 +207,12 @@ class Experiment(object):
             print("____________", episode, " Started " + "__________")
             test_items = self.test_items
             # Steps within an episode
-            while steps < 1000:
+            while steps < 500:
                 # Update vehicles
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
                         covered_vehicles.remove(i)
-                        new_veh = Vehicle(random.randint(0, speed), random.sample(list(self.test_dic.keys()), 1)[0])
+                        new_veh = Vehicle(random.randint(1, speed), random.sample(list(self.test_dic.keys()), 1)[0])
                         covered_vehicles.append(new_veh)
 
                 items_ready_to_cache = []
@@ -231,7 +232,8 @@ class Experiment(object):
                     valid_indices = (interacted_items >= 0) & (interacted_items < score.size(0))
                     interacted_items = interacted_items[valid_indices]
                     # Apply the mask
-                    score[interacted_items] = -float('inf')
+                    min_value = score.min().item()
+                    score[interacted_items] = min_value - 1e2
 
                     _, recommended_items = torch.topk(score, k=self.args.k_list)
                     sorted_items = recommended_items.cpu().numpy().flatten()
@@ -265,7 +267,6 @@ class Experiment(object):
                             j += 1
                             itr += 1
                     request_dataset.update(vehicle_items)
-                print("len of request_dataset: ", len(request_dataset))
                 # print("len of items_ready_to_cache: ", len(items_ready_to_cache))
                 for item in items_ready_to_cache:
                     self.fifo_cache.put(item)
@@ -280,16 +281,18 @@ class Experiment(object):
                 scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
                 node_feature = torch.cat([state, scores], dim=0).to(self.device)
                 edge_index = self.create_star_graph_edge_index(self.args.vehicle_num).to(self.device)
-                data = Data(node_feature=node_feature, edge_index=edge_index)
-                action, rsu_embedding, action_indices, action_probabilities = self.agent.get_action(data, items_ready_to_cache, self.cached_items)
-                next_state, reward, cache_efficiency, request_delay, cached_items = self.environment.step(
+                action, rsu_embedding = (
+                    self.agent.select_action(
+                    node_feature,
+                    edge_index,
+                    items_ready_to_cache))
+                next_state, reward, cache_efficiency, request_delay, current_state = self.environment.step(
                     action,
                     rsu_embedding,
                     request_dataset,
                     self.v2i_rate,
                     steps,
                     items_ready_to_cache)
-                self.cached_items = cached_items
                 terminal = False  # Set terminal condition if applicable
                 episode_reward.append(reward)
                 # update new scores
@@ -305,7 +308,8 @@ class Experiment(object):
                     valid_indices = (interacted_items >= 0) & (interacted_items < score.size(0))
                     interacted_items = interacted_items[valid_indices]
                     # Apply the mask
-                    score[interacted_items] = -float('inf')
+                    min_value = score.min().item()
+                    score[interacted_items] = min_value - 1e2
 
                     _, recommended_items = torch.topk(score, k=self.args.k_list)
 
@@ -335,16 +339,16 @@ class Experiment(object):
                 # Append to episode lists
                 episode_fifo_efficiencies.append(fifo_efficiency)
                 episode_lru_efficiencies.append(lru_efficiency)
-                _, next_rsu_embedding = self.agent.actor(next_node_feature, edge_index)
 
                 # Optimize the model using the current experience
                 self.agent.optimize_model(
-                    rsu_embedding=rsu_embedding,
-                    action_indices=action_indices,
-                    action_probabilities=action_probabilities,
-                    reward=reward,
-                    next_rsu_embedding=next_rsu_embedding,
-                    terminal=terminal
+                    node_feature,
+                    action,
+                    reward,
+                    next_node_feature,
+                    terminal,
+                    edge_index,
+                    items_ready_to_cache
                 )
                 state = next_state
                 print(steps)

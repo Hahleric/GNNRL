@@ -3,7 +3,7 @@ import torch
 from torch.distributions import Categorical
 from torch_geometric.data import Data
 import torch.distributions as distributions
-from model import ActorGCN, CriticGCN, TransActor, ActorGAT, MLPActor
+from model import ActorGCN, CriticGCN, TransActor, ActorGAT, MLPActor, DQN_GNN
 from recommender import Recommender
 from recommender import train_model
 from replay_buffer import ReplayBufferGNN
@@ -92,96 +92,110 @@ import math
 # class DQN_GNN(nn.Module):
 #     ...
 
-class DDQNAgent:
-    def __init__(self, node_feature_dim, hidden_dim, num_actions, lr=1e-3, gamma=0.99, tau=1e-3):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.num_actions = num_actions
-        self.gamma = gamma
-        self.tau = tau  # 用于软更新目标网络参数
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.data import Data
+import random
 
-        # 主网络和目标网络
-        self.policy_net = DQN_GNN(node_feature_dim, hidden_dim, num_actions).to(self.device)
-        self.target_net = DQN_GNN(node_feature_dim, hidden_dim, num_actions).to(self.device)
+
+class DDQNAgent:
+    def __init__(self, args, lr=1e-4, gamma=0.75, tau=0.099):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.num_items = args.num_items  # Total number of items
+        self.gamma = gamma
+        self.agent_name = "DDQN"
+        self.tau = tau  # For soft updating target network parameters
+        self.num_actions_to_select = args.cache_size  # Number of files to cache (replace)
+
+        # Initialize policy and target networks
+        self.policy_net = DQN_GNN(args.feature_dim, args.hidden_dim, self.num_items).to(self.device)
+        self.target_net = DQN_GNN(args.feature_dim, args.hidden_dim, self.num_items).to(self.device)
+
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
 
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
-        self.loss_fn = nn.MSELoss()
-
-        # 初始化时间步
-        self.steps_done = 0
+        self.loss_fn = nn.SmoothL1Loss()
+        # self.loss_fn = nn.MSELoss()
 
     def select_action(self, state, edge_index, items_ready_to_cache, epsilon=0.1):
         """
-        选择动作，考虑 items_ready_to_cache。
+        Select multiple actions considering items_ready_to_cache
         """
-        sample = random.random()
-        if sample > epsilon:
-            with torch.no_grad():
-                data = Data(node_feature=state, edge_index=edge_index)
-                q_values = self.policy_net(data)  # [num_actions]
+        data = Data(node_feature=state, edge_index=edge_index)
 
-                # 仅选择 items_ready_to_cache 中的动作
-                valid_q_values = q_values.clone()
-                invalid_actions = set(range(self.num_actions)) - set(items_ready_to_cache)
-                if invalid_actions:
-                    invalid_indices = torch.tensor(list(invalid_actions), dtype=torch.long).to(self.device)
-                    valid_q_values[invalid_indices] = -float('inf')  # 设为负无穷，避免选择
+        with torch.no_grad():
+            q_values, rsu_embedding = self.policy_net(data, items_ready_to_cache)  # [len(items_ready_to_cache)]
 
-                action = valid_q_values.argmax(dim=0).item()
+        # Epsilon-greedy policy for multiple actions
+        if random.random() > epsilon:
+            # Select top K actions based on Q-values
+            top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
+            top_k_indices = q_values.topk(top_k).indices.cpu().numpy()
+            actions = [items_ready_to_cache[i] for i in top_k_indices]
         else:
-            # 从 items_ready_to_cache 中随机选择动作
-            action = random.choice(items_ready_to_cache)
-        return action
+            # Randomly select K actions from items_ready_to_cache
+            top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
+            actions = random.sample(items_ready_to_cache, top_k)
+        return actions, rsu_embedding
 
-    def optimize_model(self, state, action, reward, next_state, terminal, edge_index, items_ready_to_cache):
+    def optimize_model(self, state, actions, reward, next_state, terminal, edge_index, items_ready_to_cache):
         """
-        使用当前转移优化模型，不使用经验回放。
+        Use the current transition to optimize the model.
         """
         state = state.to(self.device)  # [num_nodes, feature_dim]
         next_state = next_state.to(self.device)
         edge_index = edge_index.to(self.device)
-        action = torch.tensor([action], dtype=torch.long).to(self.device)  # [1]
         reward = torch.tensor([reward], dtype=torch.float32).to(self.device)  # [1]
         terminal = torch.tensor([terminal], dtype=torch.float32).to(self.device)  # [1]
 
-        # 当前状态的 Q 值
-        data = Data(node_feature=state, edge_index=edge_index)
-        q_values = self.policy_net(data)  # [num_actions]
-        state_action_value = q_values[action].unsqueeze(0)  # [1]
+        # Get indices of actions in items_ready_to_cache
+        action_indices = torch.tensor([items_ready_to_cache.index(a) for a in actions], dtype=torch.long).to(self.device)  # [K]
 
-        # 下一个状态的 Q 值（使用 Double DQN）
+        # Current state's Q-values
+        data = Data(node_feature=state, edge_index=edge_index)
+        q_values, _ = self.policy_net(data, items_ready_to_cache)  # [len(items_ready_to_cache)]
+        state_action_values = q_values[action_indices]  # [K]
+
+        # Next state's Q-values (Double DQN)
         next_data = Data(node_feature=next_state, edge_index=edge_index)
         with torch.no_grad():
-            next_q_values_policy = self.policy_net(next_data)  # [num_actions]
-            next_actions = next_q_values_policy.argmax(dim=0, keepdim=True)  # [1]
-            next_q_values_target = self.target_net(next_data)  # [num_actions]
-            next_state_value = next_q_values_target[next_actions].squeeze(0)  # [1]
+            next_q_values_policy, _ = self.policy_net(next_data, items_ready_to_cache)  # [len(items_ready_to_cache)]
+            next_q_values_target, _ = self.target_net(next_data, items_ready_to_cache)  # [len(items_ready_to_cache)]
 
-        # 计算预期的 Q 值
-        expected_state_action_value = reward + (self.gamma * next_state_value * (1 - terminal))
+            # Select next actions based on policy net
+            top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
+            next_action_indices = next_q_values_policy.topk(top_k).indices  # [K]
+            next_state_values = next_q_values_target[next_action_indices]  # [K]
+
+        # Compute expected Q values
+        expected_state_action_values = reward + (self.gamma * next_state_values * (1 - terminal))
+
+        loss = self.loss_fn(state_action_values, expected_state_action_values)
 
         # 计算损失
-        loss = self.loss_fn(state_action_value, expected_state_action_value.unsqueeze(0))
+        print("Loss: ", loss.item())
 
-        # 优化模型
+        # Optimize the model
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        # 软更新目标网络参数
+        # Soft update target network parameters
         self.soft_update_target_network()
 
     def soft_update_target_network(self):
         """
-        软更新目标网络参数。
+        Soft update target network parameters.
         """
         for target_param, param in zip(self.target_net.parameters(), self.policy_net.parameters()):
             target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
 
 
+
 class GCNAgent:
-    def __init__(self, args, learning_rate=1e-3, gamma=0.99, buffer_size=1000):
+    def __init__(self, args, learning_rate=1e-2, gamma=0.99, buffer_size=1000):
         self.cache_size = args.cache_size
         self.args = args
         self.agent_name = "GCN"
@@ -203,7 +217,6 @@ class GCNAgent:
 
     def get_action(self, data, items_ready_to_cache, eps=0.1):
         scores, rsu_embedding = self.actor(data, items_ready_to_cache)
-        print()
         if np.random.rand() < eps:
             # 随机选择
             action_indices = random.sample(range(len(items_ready_to_cache)), self.replace_num)

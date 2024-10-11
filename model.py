@@ -38,19 +38,91 @@ class ActorGCN(nn.Module):
         items_embeddings = self.item_embedding_layer(indices_tensor).to(self.device)
         return items_embeddings
 
-class DQN_GNN(nn.Module):
-    def __init__(self, node_feature_dim, hidden_dim, num_actions):
-        super(DQN_GNN, self).__init__()
-        self.conv1 = GCNConv(node_feature_dim, hidden_dim)
-        self.conv2 = GCNConv(hidden_dim, hidden_dim)
-        self.fc = nn.Linear(hidden_dim, num_actions)
 
-    def forward(self, data):
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv, global_mean_pool
+class DQN_GNN(nn.Module):
+    def __init__(self, node_feature_dim, hidden_dim, num_items):
+        super(DQN_GNN, self).__init__()
+
+        # Define multiple GCN layers
+        self.conv1 = GCNConv(node_feature_dim, hidden_dim)
+        self.batch_norm1 = nn.LayerNorm(hidden_dim)
+
+        self.conv2 = GCNConv(hidden_dim, hidden_dim)
+        self.batch_norm2 = nn.LayerNorm(hidden_dim)
+
+        # Adding more convolution layers
+        self.conv3 = GCNConv(hidden_dim, hidden_dim)
+        self.batch_norm3 = nn.LayerNorm(hidden_dim)
+
+        self.conv4 = GCNConv(hidden_dim, hidden_dim)
+        self.batch_norm4 = nn.LayerNorm(hidden_dim)
+
+        # Adding fifth and sixth GCN layers
+
+        # Embedding layer for items
+        self.item_embeddings = nn.Embedding(num_items, hidden_dim)
+        self.item_batch_norm = nn.BatchNorm1d(hidden_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(2 * hidden_dim, num_items),
+            nn.ReLU(),
+            nn.Linear(num_items, 1)
+        )
+        # Xavier initialization for the GCN layers
+        torch.nn.init.xavier_uniform_(self.conv1.lin.weight)
+        torch.nn.init.xavier_uniform_(self.conv2.lin.weight)
+        torch.nn.init.xavier_uniform_(self.conv3.lin.weight)
+        torch.nn.init.xavier_uniform_(self.conv4.lin.weight)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, data, items_ready_to_cache):
         x, edge_index = data.node_feature, data.edge_index
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.relu(self.conv2(x, edge_index))
-        x = self.fc(x)
-        return x
+        batch = torch.zeros(x.size(0), dtype=torch.long, device=self.device)
+        # First GCN layer with BatchNorm
+        gelu = nn.GELU()
+        x = gelu(self.batch_norm1(self.conv1(x, edge_index)))
+
+        # Second GCN layer with BatchNorm
+        x = gelu(self.batch_norm2(self.conv2(x, edge_index)))
+
+        # Third GCN layer with BatchNorm
+        x = gelu(self.batch_norm3(self.conv3(x, edge_index)))
+
+        # Fourth GCN layer with BatchNorm
+        x = F.leaky_relu(self.batch_norm4(self.conv4(x, edge_index)), negative_slope=0.01)
+
+        rsu_embedding = x[0]  # Assume RSU node at index 0
+        # Readout layer to get a graph-level embedding (global mean pool)
+        graph_embedding = global_mean_pool(x, batch)  # shape [num_graphs, hidden_dim]
+
+        # Assume RSU node is node 0 for each graph, extract its embedding
+        # Get embeddings for items ready to cache with BatchNorm
+        item_embs = self.get_items_embeddings(items_ready_to_cache)  # [num_items_ready, hidden_dim]
+        item_embs = self.item_batch_norm(item_embs)
+
+        # Compute Q-values as dot product between RSU embedding and item embeddings
+        combined_features = torch.cat([item_embs, rsu_embedding.expand_as(item_embs)], dim=1)
+        q_values = self.mlp(combined_features)  # [1, num_items_ready]
+        q_values = q_values.T[0]
+        return q_values, rsu_embedding  # Return Q-values and the graph-level embedding
+
+    def get_items_embeddings(self, items_ready_to_cache):
+        item_id_to_index = {int(item_id): idx for idx, item_id in enumerate(items_ready_to_cache)}
+        indices = [item_id_to_index[int(item_id)] for item_id in items_ready_to_cache]
+        indices_tensor = torch.tensor(indices, dtype=torch.long).to(self.device)
+
+        # Get item embeddings
+        items_embeddings = self.item_embeddings(indices_tensor).to(self.device)
+        return items_embeddings
+
 
 
 class MLPActor(nn.Module):

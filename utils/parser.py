@@ -24,7 +24,7 @@ def parse_args():
                         help = 'layer number')
     parser.add_argument('--gpu', default = 0, type = int,
                         help = '-1 for cpu, 0 for gpu:0')
-    parser.add_argument('--k_list', default = 300, type = int,
+    parser.add_argument('--k_list', default = 500, type = int,
                         help = 'topk evaluation')
     parser.add_argument('--k', default = 20, type = int,
                         help = 'neighbor number in each GNN aggregation')
@@ -46,14 +46,16 @@ def parse_args():
                         help = 'cache size for cache environment')
     parser.add_argument('--vehicle_num', default = 100, type = int,
                         help = 'vehicle number')
-    parser.add_argument('--feature_dim', default = 300, type = int,
+    parser.add_argument('--feature_dim', default = 500, type = int,
                         help = 'feature dimension')
     parser.add_argument('--rl_batch_size', default = 40, type = int,
                         help = 'rl batch size')
-    parser.add_argument('--num_items', default = 40, type = int,
+    parser.add_argument('--num_items', default = 500, type = int,
                         help = 'number of items')
     parser.add_argument('--replace_num', default = 50, type =int,
                         help = 'number of items to replace')
+    parser.add_argument('--hidden_dim', default = 500, type = int,
+                        help = 'feature dimension')
 
     args = parser.parse_args()
     return args

@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import logging
 import gc  # Python垃圾回收模块
-from GCNAgent import GCNAgent, TransAgent, GATAgent, MLPAgent
+from GCNAgent import GCNAgent, TransAgent, GATAgent, MLPAgent, DDQNAgent
 import experiment
 from utils.parser import parse_args
 from utils.dataloader import Dataloader
@@ -19,6 +19,8 @@ from utils.tester import Tester
 from models.sampler import NegativeSampler
 import environment
 import matplotlib.pyplot as plt
+import time
+
 
 if __name__ == '__main__':
     torch.autograd.set_detect_anomaly(True)
@@ -106,7 +108,7 @@ if __name__ == '__main__':
 
     for i in range(1):
         if i == 0:
-            agent = GATAgent(args)
+            agent = DDQNAgent(args)
         elif i == 1:
             agent = TransAgent(args)
         elif i == 2:
