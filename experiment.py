@@ -226,7 +226,7 @@ class Experiment(object):
                     mask = torch.tensor(self.history_csr[i.user_number].todense(), device=self.device).bool()
                     score[mask] = min_value - 1e9
                     # Apply the mask
-
+                    print(score.shape)
                     _, recommended_items = torch.topk(score, k=self.args.k_list//self.args.vehicle_num)
                     recommended_score, _ = torch.topk(score, k=self.args.k_list)
                     sorted_items = recommended_items.cpu().numpy().flatten()
