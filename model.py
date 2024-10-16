@@ -79,10 +79,10 @@ class DQN_GNN(nn.Module):
         self.embedding_projection = nn.Linear(2000, node_feature_dim)
 
         # Transformer Encoder layer for state
-        self.attention_layer = nn.MultiheadAttention(embed_dim=node_feature_dim, num_heads=11, batch_first=True)
+        self.attention_layer = nn.MultiheadAttention(embed_dim=node_feature_dim, num_heads=4, batch_first=True)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=node_feature_dim,
-            nhead=11,
+            nhead=4,
             dim_feedforward=2048,
             dropout=0.1,
             activation='relu',
@@ -94,7 +94,7 @@ class DQN_GNN(nn.Module):
         )
 
         # 第二个注意力层
-        self.attention_layer2 = nn.MultiheadAttention(embed_dim=node_feature_dim, num_heads=11, batch_first=True)
+        self.attention_layer2 = nn.MultiheadAttention(embed_dim=node_feature_dim, num_heads=4, batch_first=True)
 
         self.mlp = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
