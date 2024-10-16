@@ -100,14 +100,14 @@ import random
 
 
 class DDQNAgent:
-    def __init__(self, args, lr=1e-4, gamma=0.75, tau=0.099):
+    def __init__(self, args, lr=1e-2, gamma=0.99, tau=0.001):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.num_items = args.num_items  # Total number of items
         self.gamma = gamma
         self.agent_name = "DDQN"
         self.tau = tau  # For soft updating target network parameters
-        self.num_actions_to_select = args.cache_size  # Number of files to cache (replace)
-
+        self.num_actions_to_select = args.cache_size - args.replace_num  # Number of files to cache (replace)
+        self.cache_size = args.cache_size
         # Initialize policy and target networks
         self.policy_net = DQN_GNN(args.feature_dim, args.hidden_dim, self.num_items).to(self.device)
         self.target_net = DQN_GNN(args.feature_dim, args.hidden_dim, self.num_items).to(self.device)
@@ -119,54 +119,62 @@ class DDQNAgent:
         self.loss_fn = nn.SmoothL1Loss()
         # self.loss_fn = nn.MSELoss()
 
-    def select_action(self, state, edge_index, items_ready_to_cache, epsilon=0.1):
+    def select_action(self, state, scores,  edge_index, items_ready_to_cache, epsilon=0.1):
         """
         Select multiple actions considering items_ready_to_cache
         """
-        data = Data(node_feature=state, edge_index=edge_index)
-
+        data = Data(state=state, scores=scores, edge_index=edge_index)
         with torch.no_grad():
-            q_values, rsu_embedding = self.policy_net(data, items_ready_to_cache)  # [len(items_ready_to_cache)]
-
+            q_values = self.policy_net(data, items_ready_to_cache)  # [len(items_ready_to_cache)]
+        top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
+        actions = state.tolist()
         # Epsilon-greedy policy for multiple actions
         if random.random() > epsilon:
             # Select top K actions based on Q-values
-            top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
+
             top_k_indices = q_values.topk(top_k).indices.cpu().numpy()
-            actions = [items_ready_to_cache[i] for i in top_k_indices]
+
+            for i in range(len(top_k_indices)):
+                if i not in top_k_indices:
+                    actions[i] = random.choice(items_ready_to_cache)
+
         else:
             # Randomly select K actions from items_ready_to_cache
-            top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
-            actions = random.sample(items_ready_to_cache, top_k)
-        return actions, rsu_embedding
-
-    def optimize_model(self, state, actions, reward, next_state, terminal, edge_index, items_ready_to_cache):
+            top_k_indices = np.random.randint(0, self.cache_size, size=self.num_actions_to_select)
+            for i in range(len(top_k_indices)):
+                if i not in top_k_indices:
+                    actions[i] = random.choice(items_ready_to_cache)
+        return actions, top_k_indices
+    def optimize_model(self, state, scores, action_indices, reward, next_state, next_scores, terminal, edge_index, items_ready_to_cache):
         """
         Use the current transition to optimize the model.
         """
+        state = torch.tensor(state, dtype=torch.float32)
         state = state.to(self.device)  # [num_nodes, feature_dim]
         next_state = next_state.to(self.device)
         edge_index = edge_index.to(self.device)
+        action_indices = torch.tensor(action_indices, dtype=torch.long).to(self.device)  # [K]
+        data = Data(state=state,scores=scores, edge_index=edge_index)
         reward = torch.tensor([reward], dtype=torch.float32).to(self.device)  # [1]
         terminal = torch.tensor([terminal], dtype=torch.float32).to(self.device)  # [1]
 
         # Get indices of actions in items_ready_to_cache
-        action_indices = torch.tensor([items_ready_to_cache.index(a) for a in actions], dtype=torch.long).to(self.device)  # [K]
+        # action_indices = torch.tensor([items_ready_to_cache.index(a) for a in actions], dtype=torch.long).to(self.device)  # [K]
 
         # Current state's Q-values
-        data = Data(node_feature=state, edge_index=edge_index)
-        q_values, _ = self.policy_net(data, items_ready_to_cache)  # [len(items_ready_to_cache)]
+        q_values = self.policy_net(data, items_ready_to_cache)  # [len(items_ready_to_cache)]
         state_action_values = q_values[action_indices]  # [K]
-
+        next_data = Data(state=next_state, scores=next_scores, edge_index=edge_index)
         # Next state's Q-values (Double DQN)
-        next_data = Data(node_feature=next_state, edge_index=edge_index)
         with torch.no_grad():
-            next_q_values_policy, _ = self.policy_net(next_data, items_ready_to_cache)  # [len(items_ready_to_cache)]
-            next_q_values_target, _ = self.target_net(next_data, items_ready_to_cache)  # [len(items_ready_to_cache)]
+            next_q_values_policy = self.policy_net(next_data, items_ready_to_cache)  # [len(items_ready_to_cache)]
+            next_q_values_target = self.target_net(next_data, items_ready_to_cache)  # [len(items_ready_to_cache)]
 
             # Select next actions based on policy net
             top_k = min(self.num_actions_to_select, len(items_ready_to_cache))
             next_action_indices = next_q_values_policy.topk(top_k).indices  # [K]
+
+
             next_state_values = next_q_values_target[next_action_indices]  # [K]
 
         # Compute expected Q values

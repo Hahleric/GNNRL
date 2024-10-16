@@ -35,6 +35,7 @@ def cache_hit_ratio(test_dataset, cache_items):
     cache_item_ids = set(cache_item.file_id for cache_item in cache_items)
 
     total_requests = len(test_dataset)
+    print("total_requests: ", total_requests)
     cache_hits = 0
 
     # Iterate over each requested item
@@ -48,6 +49,7 @@ def cache_hit_ratio(test_dataset, cache_items):
                     break  # Exit loop after finding the item
     # Calculate hit ratio as a percentage
     hit_ratio = (cache_hits / total_requests)
+    print("cache_hits: ", cache_hits)
 
     return hit_ratio, cache_items
 

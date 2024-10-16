@@ -1,7 +1,7 @@
-Thu, 10 Oct 2024 03:35:06  INFO loadding data
-Thu, 10 Oct 2024 03:35:06  INFO reading category information
-Thu, 10 Oct 2024 03:35:14  INFO reading train data
-Thu, 10 Oct 2024 03:35:19  INFO reading valid data
-Thu, 10 Oct 2024 03:35:20  INFO reading test data
-Thu, 10 Oct 2024 03:35:20  INFO get weight for each sample
-Thu, 10 Oct 2024 03:35:20  INFO loading best model for RL
+Mon, 14 Oct 2024 17:11:21  INFO loadding data
+Mon, 14 Oct 2024 17:11:21  INFO reading category information
+Mon, 14 Oct 2024 17:11:29  INFO reading train data
+Mon, 14 Oct 2024 17:11:34  INFO reading valid data
+Mon, 14 Oct 2024 17:11:34  INFO reading test data
+Mon, 14 Oct 2024 17:11:35  INFO get weight for each sample
+Mon, 14 Oct 2024 17:11:35  INFO loading best model for RL

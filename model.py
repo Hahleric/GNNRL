@@ -48,12 +48,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, global_mean_pool
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool
+
 class DQN_GNN(nn.Module):
     def __init__(self, node_feature_dim, hidden_dim, num_items):
         super(DQN_GNN, self).__init__()
 
         # Define multiple GCN layers
-        self.conv1 = GCNConv(node_feature_dim, hidden_dim)
+        self.conv1 = GCNConv(hidden_dim, hidden_dim)
         self.batch_norm1 = nn.LayerNorm(hidden_dim)
 
         self.conv2 = GCNConv(hidden_dim, hidden_dim)
@@ -65,16 +70,36 @@ class DQN_GNN(nn.Module):
 
         self.conv4 = GCNConv(hidden_dim, hidden_dim)
         self.batch_norm4 = nn.LayerNorm(hidden_dim)
+        self.conv5 = GCNConv(hidden_dim, hidden_dim)
+        self.batch_norm5 = nn.LayerNorm(hidden_dim)
+        self.conv6 = GCNConv(hidden_dim, hidden_dim)
+        self.batch_norm6 = nn.LayerNorm(hidden_dim)
 
-        # Adding fifth and sixth GCN layers
+        # Transformer Encoder layer for items
+        self.embedding_projection = nn.Linear(2000, node_feature_dim)
 
-        # Embedding layer for items
-        self.item_embeddings = nn.Embedding(num_items, hidden_dim)
-        self.item_batch_norm = nn.BatchNorm1d(hidden_dim)
+        # Transformer Encoder layer for state
+        self.attention_layer = nn.MultiheadAttention(embed_dim=node_feature_dim, num_heads=4, batch_first=True)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=node_feature_dim,
+            nhead=4,
+            dim_feedforward=2048,
+            dropout=0.1,
+            activation='relu',
+            batch_first=True  # 确保输入形状为 (batch, seq, feature)
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=3
+        )
+
+        # 第二个注意力层
+        self.attention_layer2 = nn.MultiheadAttention(embed_dim=node_feature_dim, num_heads=4, batch_first=True)
+
         self.mlp = nn.Sequential(
-            nn.Linear(2 * hidden_dim, num_items),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(num_items, 1)
+            nn.Linear(hidden_dim, 2000)
         )
         # Xavier initialization for the GCN layers
         torch.nn.init.xavier_uniform_(self.conv1.lin.weight)
@@ -84,11 +109,25 @@ class DQN_GNN(nn.Module):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def forward(self, data, items_ready_to_cache):
-        x, edge_index = data.node_feature, data.edge_index
-        batch = torch.zeros(x.size(0), dtype=torch.long, device=self.device)
-        # First GCN layer with BatchNorm
+        state, scores, edge_index = data.state, data.scores, data.edge_index
+        state = state.float()  # Add channel dimension
+        # Combine state and scores, then pass through Transformer encoder
+        state_emb = state.unsqueeze(0)  # Add batch dimension
+        state_emb = self.embedding_projection(state_emb)  # Project to hidden_dim
+        attn_output, _ = self.attention_layer(state_emb, state_emb, state_emb)  # [1, num_nodes, hidden_dim]
+        transformer_output = self.transformer_encoder(attn_output)  # 形状: [1, num_nodes, node_feature_dim]
+
+        # 第二层注意力层
+        attn_output2, _ = self.attention_layer2(transformer_output, transformer_output, transformer_output)  # 形状: [1, num_nodes, node_feature_dim]
+
+        # 移除批次维度
+        state_emb = torch.cat([attn_output2, scores], dim=0)  # Concatenate state and scores
+
+        batch = torch.zeros(state_emb.size(0), dtype=torch.long, device=self.device)
         gelu = nn.GELU()
-        x = gelu(self.batch_norm1(self.conv1(x, edge_index)))
+
+        # First GCN layer with BatchNorm
+        x = gelu(self.batch_norm1(self.conv1(state_emb, edge_index)))
 
         # Second GCN layer with BatchNorm
         x = gelu(self.batch_norm2(self.conv2(x, edge_index)))
@@ -97,32 +136,24 @@ class DQN_GNN(nn.Module):
         x = gelu(self.batch_norm3(self.conv3(x, edge_index)))
 
         # Fourth GCN layer with BatchNorm
-        x = F.leaky_relu(self.batch_norm4(self.conv4(x, edge_index)), negative_slope=0.01)
+        x = gelu(self.batch_norm4(self.conv4(x, edge_index)))
 
-        rsu_embedding = x[0]  # Assume RSU node at index 0
-        # Readout layer to get a graph-level embedding (global mean pool)
-        graph_embedding = global_mean_pool(x, batch)  # shape [num_graphs, hidden_dim]
+        # Fifth GCN layer with BatchNorm
+        x = gelu(self.batch_norm5(self.conv5(x, edge_index)))
 
-        # Assume RSU node is node 0 for each graph, extract its embedding
-        # Get embeddings for items ready to cache with BatchNorm
-        item_embs = self.get_items_embeddings(items_ready_to_cache)  # [num_items_ready, hidden_dim]
-        item_embs = self.item_batch_norm(item_embs)
+        # Sixth GCN layer with BatchNorm
+        x = gelu(self.batch_norm6(self.conv6(x, edge_index)))
+        # Readout layer to get a graph-level embedding (global max pool)
+        rsu_embedding = global_mean_pool(x, batch)  # shape [num_graphs, hidden_dim]
+        rsu_embedding = rsu_embedding.squeeze(0)  # Add batch dimension
+        # Pass items ready to cache through Transformer encoder
 
-        # Compute Q-values as dot product between RSU embedding and item embeddings
-        combined_features = torch.cat([item_embs, rsu_embedding.expand_as(item_embs)], dim=1)
-        q_values = self.mlp(combined_features)  # [1, num_items_ready]
-        q_values = q_values.T[0]
-        return q_values, rsu_embedding  # Return Q-values and the graph-level embedding
+        q_values = self.mlp(rsu_embedding)
+        q_values = torch.mm(attn_output.t(), q_values.unsqueeze(0))
+        q_values = torch.mean(q_values, dim=0)
+        q_values = q_values.view(-1)
 
-    def get_items_embeddings(self, items_ready_to_cache):
-        item_id_to_index = {int(item_id): idx for idx, item_id in enumerate(items_ready_to_cache)}
-        indices = [item_id_to_index[int(item_id)] for item_id in items_ready_to_cache]
-        indices_tensor = torch.tensor(indices, dtype=torch.long).to(self.device)
-
-        # Get item embeddings
-        items_embeddings = self.item_embeddings(indices_tensor).to(self.device)
-        return items_embeddings
-
+        return q_values
 
 
 class MLPActor(nn.Module):

@@ -10,6 +10,7 @@ import torch
 import random
 import torch
 import numpy as np
+import torch.nn as nn
 import math
 import torch.nn.init as init
 
@@ -37,6 +38,7 @@ class Environment:
         self.init_edge_index = get_edge_index(self.init_n_veh)
         self.edge_index = self.init_edge_index.copy()
         self.init_edge_index = torch.tensor(self.init_edge_index, dtype=torch.long).t()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         if len(self.popular_files) == self.cache_size:
             self.cached_files = [Cache(file_id) for file_id in self.popular_files]
@@ -44,13 +46,12 @@ class Environment:
             self.cached_files = [Cache(file_id) for file_id in random.sample(self.popular_files, self.cache_size)]
 
         self.init_cached_files = self.cached_files.copy()
-        init_state = torch.empty((1, self.args.feature_dim))
-        init.xavier_uniform_(init_state)
-        self.init_state = init_state.numpy()
+        self.init_state =[i.file_id for i in self.cached_files]
         self.state = self.init_state.copy()
+
         self.current_state = self.init_state.copy()
 
-    def step(self, action, rsu_embedding, request_dataset, v2i_rate, print_step, items_ready_to_cache):
+    def step(self, action, request_dataset, v2i_rate, print_step, items_ready_to_cache):
         # action 是一个包含待更换文件索引的列表
         if action:
             # 根据 action 更新缓存
@@ -60,7 +61,7 @@ class Environment:
             self.cached_files = replace_content
         # 更新状态为新的 RSU 嵌入表示
         self.current_state = self.state
-        self.state = rsu_embedding
+        self.state = [i.file_id for i in self.cached_files]
         # 计算缓存效率和奖励
         cache_efficiency, cached_items = cache_hit_ratio(request_dataset, self.cached_files)
         reward, request_delay = self.calculate_reward_and_delay(request_dataset, v2i_rate, cache_efficiency)
@@ -70,6 +71,7 @@ class Environment:
             print('step {}: request delay: {:.6f}'.format(print_step, request_delay))
             print('step {}: reward: {:.6f}'.format(print_step, reward))
             print("---------------------------------------------")
+        self.cached_files = cached_items
         return self.state, reward, cache_efficiency, request_delay, self.current_state
 
     # def calculate_reward_and_delay(self, request_dataset, v2i_rate, cache_efficiency):
@@ -94,21 +96,16 @@ class Environment:
     def calculate_reward_and_delay(self, request_dataset, v2i_rate, cache_efficiency):
         reward = 0
         request_delay = 0
-        hit_ratio_weight = 2 / 3  # Weight for hit ratio contribution to the reward
-        delay_weight = 1 / 3  # Weight for delay contribution to the reward
-
         for i in range(self.args.vehicle_num):
             vehicle_idx = i
-            hit_ratio_reward = cache_efficiency * hit_ratio_weight
-            delay_reward = (1 - cache_efficiency) * delay_weight * math.exp(-0.0001 * 8000000 / v2i_rate[vehicle_idx])
-
-            reward += (hit_ratio_reward + delay_reward) * len(request_dataset)
+            reward += cache_efficiency * 10
 
             # Delay calculations adjusted to only account for cache_efficiency
             request_delay += cache_efficiency * len(request_dataset) / v2i_rate[vehicle_idx] * 800
             request_delay += (1 - cache_efficiency) * (
                     len(request_dataset) / (v2i_rate[vehicle_idx] / 2)) * 800
 
+            # print(i,'mbs delay',(vehicle_request_num[vehicle_idx] / v2i_rate_mbs[vehicle_idx]) *100000)
         request_delay = request_delay / self.args.vehicle_num * 1000
         return reward, request_delay
 

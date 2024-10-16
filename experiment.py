@@ -188,8 +188,7 @@ class Experiment(object):
         vehicle_request_num = []
         covered_vehicles = []
         print(self.agent.agent_name)
-
-        speed = 10 # Speed of vehicles
+        speed = 10000 # Speed of vehicles
         # Initialize vehicles
         for _ in range(self.args.vehicle_num):
             vehicle = Vehicle(random.randint(1, speed), random.sample(list(self.test_dic.keys()), 1)[0])
@@ -197,7 +196,7 @@ class Experiment(object):
 
         episode = 0
         # Loop over episodes
-        while episode < 500:
+        while episode < 10:
             state, _ = self.environment.reset()
             episode_reward = []
             steps = 0
@@ -207,7 +206,7 @@ class Experiment(object):
             print("____________", episode, " Started " + "__________")
             test_items = self.test_items
             # Steps within an episode
-            while steps < 500:
+            while steps < 1000:
                 # Update vehicles
                 for i in covered_vehicles:
                     if i.time_stamp >= i.speed:
@@ -223,72 +222,61 @@ class Experiment(object):
                     score = self.model.get_score(h, [i.user_number])
 
                     # Convert interacted_items to a tensor on the correct device
-                    interacted_items = torch.tensor(
-                        self.history_csr[i.user_number].indices,
-                        dtype=torch.long,
-                        device=score.device
-                    )
-                    # Validate indices
-                    valid_indices = (interacted_items >= 0) & (interacted_items < score.size(0))
-                    interacted_items = interacted_items[valid_indices]
-                    # Apply the mask
                     min_value = score.min().item()
-                    score[interacted_items] = min_value - 1e2
+                    mask = torch.tensor(self.history_csr[i.user_number].todense(), device=self.device).bool()
+                    score[mask] = min_value - 1e9
+                    # Apply the mask
 
-                    _, recommended_items = torch.topk(score, k=self.args.k_list)
+                    _, recommended_items = torch.topk(score, k=self.args.k_list//self.args.vehicle_num)
+                    recommended_score, _ = torch.topk(score, k=self.args.k_list)
                     sorted_items = recommended_items.cpu().numpy().flatten()
-                    flat_score = score.view(-1)
-                    top_200 = flat_score[:self.args.feature_dim]
 
-                    # 获取原始张量的行数和列数
-                    original_shape = score.shape
 
-                    score = top_200.view(original_shape[0], -1)
-
-                    score = score.squeeze(0)
+                    score = recommended_score.squeeze(0)
                     score = torch.nan_to_num(score, nan=-1e3)
                     scores.append(score.tolist())
 
                     itr = 0
                     j = 0
-                    items_ready_to_cache_set = set(items_ready_to_cache)
-                    while itr < self.args.k_list // self.args.vehicle_num:
-                        if j == len(sorted_items):
-                            rand_item = sorted_items[random.randint(0, len(sorted_items) - 1)]
-                            if rand_item not in items_ready_to_cache_set:
-                                items_ready_to_cache.append(rand_item)
-                                items_ready_to_cache_set.add(rand_item)
-                                itr += 1
-                        elif sorted_items[j] in items_ready_to_cache_set:
-                            j += 1
-                        else:
-                            items_ready_to_cache.append(sorted_items[j])
-                            items_ready_to_cache_set.add(sorted_items[j])
-                            j += 1
-                            itr += 1
+                    # items_ready_to_cache_set = set(items_ready_to_cache)
+                    # while itr < self.args.k_list // self.args.vehicle_num:
+                    #     if j == len(sorted_items):
+                    #         rand_item = sorted_items[random.randint(0, len(sorted_items) - 1)]
+                    #         if rand_item not in items_ready_to_cache_set:
+                    #             items_ready_to_cache.append(rand_item)
+                    #             items_ready_to_cache_set.add(rand_item)
+                    #             itr += 1
+                    #     elif sorted_items[j] in items_ready_to_cache_set:
+                    #         j += 1
+                    #     else:
+                    #         items_ready_to_cache.append(sorted_items[j])
+                    #         items_ready_to_cache_set.add(sorted_items[j])
+                    #         j += 1
+                    #         itr += 1
+                    items_ready_to_cache.append(sorted_items)
                     request_dataset.update(vehicle_items)
                 # print("len of items_ready_to_cache: ", len(items_ready_to_cache))
+                items_ready_to_cache = np.array(items_ready_to_cache).flatten()
+                print("len of items_ready_to_cache: ", len(items_ready_to_cache))
                 for item in items_ready_to_cache:
                     self.fifo_cache.put(item)
                     self.lru_cache.put(item)
                 request_dataset = list(request_dataset)
-
                 # Update vehicle timestamps
                 for i in covered_vehicles:
                     i.time_stamp += 1
 
-                state = torch.tensor(state, dtype=torch.float32).to(self.device)
+                state = torch.tensor(state, dtype=torch.int32).to(self.device)
                 scores = torch.tensor(scores, dtype=torch.float32).to(self.device)
-                node_feature = torch.cat([state, scores], dim=0).to(self.device)
                 edge_index = self.create_star_graph_edge_index(self.args.vehicle_num).to(self.device)
-                action, rsu_embedding = (
+                action, action_indices = (
                     self.agent.select_action(
-                    node_feature,
+                    state,
+                    scores,
                     edge_index,
                     items_ready_to_cache))
                 next_state, reward, cache_efficiency, request_delay, current_state = self.environment.step(
                     action,
-                    rsu_embedding,
                     request_dataset,
                     self.v2i_rate,
                     steps,
@@ -309,8 +297,7 @@ class Experiment(object):
                     interacted_items = interacted_items[valid_indices]
                     # Apply the mask
                     min_value = score.min().item()
-                    score[interacted_items] = min_value - 1e2
-
+                    score[interacted_items] = min_value - 1e6
                     _, recommended_items = torch.topk(score, k=self.args.k_list)
 
                     flat_score = score.view(-1)
@@ -324,8 +311,7 @@ class Experiment(object):
                     next_scores.append(score.tolist())
 
                 next_scores = torch.tensor(next_scores, dtype=torch.float32).to(self.device)
-                next_state = next_state.unsqueeze(0)
-                next_node_feature = torch.cat([next_state, next_scores], dim=0).to(self.device)
+                next_state = torch.tensor(next_state, dtype=torch.int32).to(self.device)
 
                 # Collect cache efficiencies for each step
                 episode_cache_efficiencies.append(cache_efficiency)
@@ -339,13 +325,16 @@ class Experiment(object):
                 # Append to episode lists
                 episode_fifo_efficiencies.append(fifo_efficiency)
                 episode_lru_efficiencies.append(lru_efficiency)
-
+                if steps == 1000:
+                    terminal = True
                 # Optimize the model using the current experience
                 self.agent.optimize_model(
-                    node_feature,
-                    action,
+                    state,
+                    scores,
+                    action_indices,
                     reward,
-                    next_node_feature,
+                    next_state,
+                    next_scores,
                     terminal,
                     edge_index,
                     items_ready_to_cache

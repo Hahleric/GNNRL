@@ -95,7 +95,7 @@ if __name__ == '__main__':
     #         break
 
     logging.info('loading best model for RL')
-    model.load_state_dict(torch.load('best_models/TaoBao_model_dgrec_lr_0.05_embed_size_32_batch_size_2048_weight_decay_8e-08_layers_1_neg_number_4_seed_2024_k_20_sigma_1.0_gamma_2.0_beta_class_0.9.pt'))
+    model.load_state_dict(torch.load('best_models/Beauty_model_dgrec_lr_0.05_embed_size_32_batch_size_20_weight_decay_8e-08_layers_1_neg_number_4_seed_2024_k_20_sigma_1.0_gamma_2.0_beta_class_0.9.pt'))
     test_items = dataloader.test_items
     environment = environment.Environment(args, cache_size=args.cache_size, test_items=test_items)
     h = model.get_embedding()
